@@ -1,0 +1,16 @@
+elasticsearch:
+  image: 'elasticsearch:2'
+  ports:
+    - '9200:9200'
+    - '9300:9300'
+  volumes:
+    - ./for-docker/elasticsearch/data:/usr/share/elasticsearch/data
+mysql:
+  image: 'mysql:5.7'
+  ports:
+    - '3306:3306'
+  environment:
+    MYSQL_ROOT_PASSWORD: root
+  volumes:
+    - ./for-docker/mysql/conf.d:/etc/mysql/conf.d
+    - ./for-docker/mysql/data:/var/lib/mysql
