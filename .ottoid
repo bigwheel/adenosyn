@@ -1,0 +1,13 @@
+9512fccc-9c35-737e-97ae-57b36defb7e1
+
+DO NOT MODIFY OR DELETE THIS FILE!
+
+This file should be checked in to version control. Do not ignore this file.
+
+The first line is a unique UUID that represents the Appfile in this directory.
+This UUID is used globally across your projects to identify this specific
+Appfile. This UUID allows you to modify the name of an application, or have
+duplicate application names without conflicting.
+
+If you delete this file, then deploys may duplicate this application since
+Otto will be unable to tell that the application is deployed.

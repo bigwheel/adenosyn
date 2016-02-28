@@ -1,0 +1,12 @@
+application {
+    name = "youseibox"
+    type = "java"
+
+    dependency {
+        source = "github.com/hashicorp/otto/examples/mysql"
+    }
+
+    dependency {
+        source = "github.com/bigwheel/otto-elasticsearch"
+    }
+}
