@@ -1,0 +1,12 @@
+- table_name: artist
+  child_tables:
+    - table_name: music
+      relation: many
+      join_rule: artist.id = music.artist_id
+      child_tables:
+        - table_name: content
+          relation: many
+          join_rule: music.id = content.music_id
+    - table_name: artist_kana
+      relation: one
+      join_rule: artist.id = artist_kana.artist_id
