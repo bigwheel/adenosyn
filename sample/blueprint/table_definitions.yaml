@@ -1,0 +1,17 @@
+- artist:
+  - id
+  - name
+
+- artist_kana:
+  - artist_id
+  - kana
+
+- music:
+  - id
+  - artist_id
+  - name
+
+- content:
+  - id
+  - music_id
+  - name
