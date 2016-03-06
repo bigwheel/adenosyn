@@ -10,19 +10,48 @@ object Main {
   def db(ipAddress: String): Unit = {
     Class.forName("com.mysql.jdbc.Driver")
     ConnectionPool.singleton(
-      s"jdbc:mysql://$ipAddress/youseibox_test?characterEncoding=UTF-8", "root", "root")
+      s"jdbc:mysql://$ipAddress/youseibox_test?characterEncoding=UTF-8", "youseibox", "youseibox")
     implicit val session = AutoSession
 
     DB autoCommit { implicit session =>
-      SQL("""
-    create table members (
-      id bigint primary key auto_increment,
-      name varchar(30) not null,
-      description varchar(1000),
-      birthday date,
-      created_at timestamp not null
-    )
-          """).execute.apply()
+      /*Seq(
+        "drop table if exists artist",
+        "drop table if exists artist_kana",
+        "drop table if exists music",
+        "drop table if exists content"
+      ).foreach(SQL(_).execute.apply())
+
+      Seq(
+        """
+          create table artist (
+            id   INT  NOT NULL PRIMARY KEY AUTO_INCREMENT,
+            name TEXT NOT NULL
+          )
+        """,
+        """
+          create table artist_kana (
+            artist_id INT  NOT NULL PRIMARY KEY,
+            kana      TEXT NOT NULL
+          )
+        """,
+        """
+          create table music (
+            id        INT  NOT NULL PRIMARY KEY AUTO_INCREMENT,
+            artist_id INT  NOT NULL,
+            name      TEXT NOT NULL,
+            INDEX index_artist_id(artist_id)
+          )
+        """,
+        """
+          create table content (
+            id       INT  NOT NULL PRIMARY KEY AUTO_INCREMENT,
+            music_id INT  NOT NULL,
+            name     TEXT NOT NULL,
+            INDEX index_music_id(music_id)
+          )
+        """
+      ).foreach(SQL(_).execute.apply())
+      */
     }
   }
 }

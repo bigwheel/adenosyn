@@ -3,16 +3,19 @@ package com.github.bigwheel.youseibox
 import java.io.ByteArrayOutputStream
 import java.io.PrintStream
 import org.scalatest._
-import scala.io.Source
 import scala.sys.process._
 
 class MainSpec extends FunSpec with Matchers {
-  val ipAddress = Source.fromFile(".otto/data/dev_ip").getLines.next
+  val ipAddress = Process("otto dev address").!!.stripLineEnd
 
   it("開発環境VMが動いている") {
     val result = Process("otto dev vagrant status").!!
     result.split("\n")(3) should
       equal("default                   running (virtualbox)")
+  }
+
+  it("開発環境のIPアドレスが正しく取得できる") {
+    ipAddress should fullyMatch regex """\A\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\Z"""
   }
 
   it("Main.mainを呼べる") {
@@ -27,5 +30,9 @@ class MainSpec extends FunSpec with Matchers {
 
   it("abc") {
     Main.db(ipAddress)
+  }
+
+  it("yamlからsqlへ変換する") {
+
   }
 }
