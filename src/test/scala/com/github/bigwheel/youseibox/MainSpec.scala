@@ -31,8 +31,4 @@ class MainSpec extends FunSpec with Matchers {
   it("abc") {
     Main.db(ipAddress)
   }
-
-  it("yamlからsqlへ変換する") {
-
-  }
 }
