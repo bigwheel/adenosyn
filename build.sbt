@@ -7,5 +7,6 @@ libraryDependencies ++= Seq(
   "org.scalatest"   %% "scalatest"            % "2.2.6" % "test",
   "org.scalikejdbc" %% "scalikejdbc"          % "2.3.+",
   "mysql"           %  "mysql-connector-java" % "5.1.38", // 5.1.38
-  "ch.qos.logback"  %  "logback-classic"      % "1.1.+"
+  "ch.qos.logback"  %  "logback-classic"      % "1.1.+",
+  "org.scalaz"      %% "scalaz-core"          % "7.2.1"
 )
