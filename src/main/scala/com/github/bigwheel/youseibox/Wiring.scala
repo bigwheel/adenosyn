@@ -32,6 +32,7 @@ case class LeafOneToOneTableDefinition(
 case class LeafOneToManyTableDefinition(
   val name: String,
   val joinRule: String,
+  val parentGroupByColumn: String,
   val chain: Option[LeafOneToOneTableDefinition] = None
 ) extends LeafTableDefinition {
   val relation = OneToMany
@@ -49,21 +50,33 @@ case class JsonObject(
 class Wiring {
   def forJsonString(js: JsonString): String = js.refer
 
-  def forJsonObject(bluePrint: JsonObject): String = {
-    val tableDefinition = bluePrint.td.get
+  def forJsonObject(key: String, bluePrint: JsonObject): String = {
+    val tableDefinition = bluePrint.td.get.asInstanceOf[LeafTableDefinition]
+    val tail = tableDefinition match {
+      case l: LeafOneToManyTableDefinition => "GROUP BY\n  " + l.parentGroupByColumn
+      case _ => ""
+    }
     val properties = bluePrint.properties.map { p =>
-      s""" '"${p._1}":"', ${p._2.asInstanceOf[JsonString].refer}, '"', """
+      p._2 match {
+        case js: JsonString => s""" '"${p._1}":"', ${js.refer}, '"', """
+        case jo: JsonObject => s""" '"${p._1}":[', GROUP_CONCAT(${p._1}.json SEPARATOR ','), ']',"""
+      }
     }.mkString("")
     s"""
-       |SELECT
-       |  ${tableDefinition.name}.*,
-       |  CONCAT(
-       |    '{',
-       |    $properties
-       |    '}'
-       |  ) AS json
-       |FROM
-       |  ${tableDefinition.name}
+       |(
+       |  SELECT
+       |    ${tableDefinition.name}.*,
+       |    CONCAT(
+       |      '{',
+       |      $properties
+       |      '}'
+       |    ) AS json
+       |  FROM
+       |    ${tableDefinition.name}
+       |) AS $key
+       |ON
+       |  ${tableDefinition.joinRule}
+       |$tail
     """.stripMargin
   }
 
@@ -81,14 +94,16 @@ class Wiring {
       "musics" -> JsonObject(
         LeafOneToManyTableDefinition(
           "music",
-          "artist.id = music.artist_id"
+          "artist.id = music.artist_id",
+          "artist.id"
         ).some,
         Map[String, JsonValue](
           "name" -> JsonString("music.name"),
           "contents" -> JsonObject(
             LeafOneToManyTableDefinition(
               "content",
-              "music.id = content.music_id"
+              "music.id = contents.music_id", // ここのjoinRuleが
+              "music.id" // 外のcontentsという名前に引きづられるのいや
             ).some,
             Map[String, JsonValue](
               "name" -> JsonString("content.name")
@@ -99,8 +114,8 @@ class Wiring {
     )
   )
 
-  println(forJsonObject(bluePrint.properties("musics").asInstanceOf[JsonObject].properties("contents").
-    asInstanceOf[JsonObject]))
+  val musics = bluePrint.properties("musics").asInstanceOf[JsonObject]
+  println(forJsonObject("contents", musics.properties("contents").asInstanceOf[JsonObject]))
 
   //println(forJsonObject(bluePrint.properties("musics").asInstanceOf[JsonObject]))
 }
