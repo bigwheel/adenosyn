@@ -53,20 +53,13 @@ GROUP BY music.id
 ;
 
 
-SELECT music.id FROM music JOIN
-  (
-    SELECT
-      content.*,
-      CONCAT(
-          '{',
-          '"name":"', content.name, '"',
-          '}'
-      ) AS json
-    FROM
-      content
-  ) AS contents
-    ON
-      music.id = contents.music_id
-GROUP BY
-  music.id
+SELECT
+  artist.*,
+  CONCAT(
+      '{',
+      '"name":"', artist.name, '"',
+      '}'
+  ) AS json
+FROM
+  artist
 ;

@@ -47,6 +47,26 @@ case class JsonObject(
   properties: Map[String, JsonValue]
 ) extends JsonValue
 
+object Wiring {
+  def renderSql(jo: JsonObject): String = {
+    val tableName = jo.td.get.asInstanceOf[RootTableDefinition].name
+    val properties = jo.properties.map { case (k, v) =>
+      s"""'"$k":"', ${v.asInstanceOf[JsonString].refer}, '"',"""
+    }.mkString
+    s"""
+      |SELECT
+      |  $tableName.*,
+      |  CONCAT(
+      |      '{',
+      |      $properties
+      |      '}'
+      |  ) AS json
+      |FROM
+      |  $tableName
+      |""".stripMargin
+  }
+}
+
 class Wiring {
   def forJsonString(js: JsonString): String = js.refer
 
