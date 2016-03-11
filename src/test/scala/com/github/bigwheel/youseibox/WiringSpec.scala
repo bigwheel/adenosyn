@@ -94,8 +94,10 @@ class WiringSpec extends FunSpec with Matchers {
         "name" -> JsonString("artist.name")
       )
     )
-    SQL(Wiring.renderSql(subject)).map(_.toMap).list.apply() |> asJsonObj should equal(
-      List(Map("id" -> 1, "name" -> "水樹奈々", "json" -> Json("name" := "水樹奈々")))
+    SQL(subject.toSql._1).map(_.toMap).list.apply() |> asJsonObj should equal(
+      List(Map("id" -> 1, "name" -> "水樹奈々",
+        "json" -> Json("name" := "水樹奈々")
+      ))
     )
   }
 
@@ -109,9 +111,122 @@ class WiringSpec extends FunSpec with Matchers {
         "name" -> JsonString("artist.name")
       )
     )
-    println(SQL(Wiring.renderSql(subject)).map(_.toMap).list.apply())
-    SQL(Wiring.renderSql(subject)).map(_.toMap).list.apply() |> asJsonObj should equal(
-      List(Map("id" -> 1, "name" -> "水樹奈々", "json" -> Json("id" := 1, "name" := "水樹奈々")))
+    SQL(subject.toSql._1).map(_.toMap).list.apply() |> asJsonObj should equal(
+      List(Map("id" -> 1, "name" -> "水樹奈々",
+        "json" -> Json("id" := 1, "name" := "水樹奈々")
+      ))
     )
+  }
+
+  it("単純チェインのテーブルJOINでjsonオブジェクトを組み立てられる") {
+    val subject = youseibox.JsonObject(
+      RootTableDefinition(
+        "artist",
+        LeafOneToOneTableDefinition(
+          "artist_kana",
+          "artist.id = artist_kana.artist_id"
+        ).some
+      ).some,
+      Map[String, JsonValue](
+        "name" -> JsonString("artist.name"),
+        "kana" -> JsonString("artist_kana.kana")
+      )
+    )
+    SQL(subject.toSql._1).map(_.toMap).list.apply() |> asJsonObj should equal(
+      List(Map("id" -> 1, "name" -> "水樹奈々",
+        "json" -> Json("name" := "水樹奈々", "kana" := "みずきなな")
+      ))
+    )
+  }
+
+  it("jsonオブジェクトがネストしていても組み立てられる") {
+    val subject = youseibox.JsonObject(
+      RootTableDefinition(
+        "artist"
+      ).some,
+      Map[String, JsonValue](
+        "name" -> JsonString("artist.name"),
+        "musics" -> JsonArray(
+          LeafOneToManyTableDefinition(
+            "music",
+            "artist.id = music.artist_id",
+            "artist.id"
+          ).some,
+          JsonString("music.name")
+        )
+      )
+    )
+    SQL(subject.toSql._1).map(_.toMap).list.apply() |> asJsonObj should equal(
+      List(Map("id" -> 1, "name" -> "水樹奈々",
+        "json" -> Json(
+          "name" := "水樹奈々",
+          "musics" := Json.array(jString("深愛"), jString("innocent starter"))
+        )
+      ))
+    )
+  }
+
+  it("ネストと直列JOINが両方あっても組み立てられる") {
+    val subject = youseibox.JsonObject(
+      RootTableDefinition(
+        "artist",
+        LeafOneToOneTableDefinition(
+          "artist_kana",
+          "artist.id = artist_kana.artist_id"
+        ).some
+      ).some,
+      Map[String, JsonValue](
+        "name" -> JsonString("artist.name"),
+        "kana" -> JsonString("artist_kana.kana"),
+        "musics" -> JsonArray(
+          LeafOneToManyTableDefinition(
+            "music",
+            "artist.id = music.artist_id",
+            "artist.id"
+          ).some,
+          JsonString("music.name")
+        )
+      )
+    )
+    SQL(subject.toSql._1).map(_.toMap).list.apply() |> asJsonObj should equal(
+      List(Map("id" -> 1, "name" -> "水樹奈々",
+        "json" -> Json(
+          "name" := "水樹奈々",
+          "kana" := "みずきなな",
+          "musics" := Json.array(jString("深愛"), jString("innocent starter"))
+        )
+      ))
+    )
+  }
+
+  it("ネスト内からネスト外のカラムを参照できる") {
+    val subject = youseibox.JsonObject(
+      RootTableDefinition(
+        "artist"
+      ).some,
+      Map[String, JsonValue](
+        "name" -> JsonString("artist.name"),
+        "musics" -> JsonArray(
+          LeafOneToManyTableDefinition(
+            "music",
+            "artist.id = music.artist_id",
+            "artist.id"
+          ).some,
+          JsonInt("artist.id")
+        )
+      )
+    )
+    SQL(subject.toSql._1).map(_.toMap).list.apply() |> asJsonObj should equal(
+      List(Map("id" -> 1, "name" -> "水樹奈々",
+        "json" -> Json(
+          "name" := "水樹奈々",
+          "musics" := Json.array(jNumber(1), jNumber(1))
+        )
+      ))
+    )
+  }
+
+  it ("Optionで型を指定しているようなデータ構造はきっちりNoneを渡した時のテストも書いておくこと") {
+    pending
   }
 }

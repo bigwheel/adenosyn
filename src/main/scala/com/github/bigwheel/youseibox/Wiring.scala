@@ -39,47 +39,72 @@ case class LeafOneToManyTableDefinition(
 }
 
 trait JsonValue {
-  def toSql: String
+  def toSql: (String, String)
 }
 
 case class JsonString(val columnName: String) extends JsonValue {
-  def toSql = s"""'"', $columnName, '"'"""
+  def toSql = (s"""'"', $columnName, '"'""", "")
 }
 
 case class JsonInt(val columnName: String) extends JsonValue {
-  def toSql = columnName
+  def toSql = (columnName, "")
+}
+
+case class JsonArray(
+  td: Option[TableDefinition],
+  value: JsonValue
+) extends JsonValue {
+  def toSql = {
+    // TODO: Noneの場合のコードも書け
+    val tableDefinition = td.get.asInstanceOf[LeafOneToManyTableDefinition]
+    (
+      s"""'[', GROUP_CONCAT(${value.toSql._1} SEPARATOR ','), ']'""",
+      s"""
+         |JOIN
+         |  ${tableDefinition.name}
+         |ON
+         |  ${tableDefinition.joinRule}
+         |GROUP BY
+         |  ${tableDefinition.parentGroupByColumn}
+         |""".stripMargin
+      )
+  }
 }
 
 case class JsonObject(
   td: Option[TableDefinition],
   properties: Map[String, JsonValue]
 ) extends JsonValue {
-  def toSql = ""
-}
-
-object Wiring {
-  def renderSql(jo: JsonObject): String = {
-    val tableName = jo.td.get.asInstanceOf[RootTableDefinition].name
-    val properties = jo.properties.map { case (k, v) =>
-      s"""'"$k":', ${v.toSql},"""
+  def toSql = {
+    val tableDefinition = td.get.asInstanceOf[RootTableDefinition] // TODO: Noneの場合のコードも書け
+    val joinString = tableDefinition.chain.map { innerTd =>
+      s"""
+         |JOIN
+         |  ${innerTd.name}
+         |ON
+         |  ${innerTd.joinRule}
+         |""".stripMargin
+    }.getOrElse("") // TODO ここscalazの元の概念(モナドかも？)を使えばこんな無様なコードにはならない
+    val tableName = tableDefinition.name
+    val p = properties.map { case (k, v) =>
+      s"""'"$k":', ${v.toSql._1},"""
     }.mkString("',',")
-    s"""
-      |SELECT
-      |  $tableName.*,
-      |  CONCAT(
-      |      '{',
-      |      $properties
-      |      '}'
-      |  ) AS json
-      |FROM
-      |  $tableName
-      |""".stripMargin
+    val joins = properties.values.map(_.toSql._2)
+    (s"""
+       |SELECT
+       |  $tableName.*,
+       |  CONCAT(
+       |      '{',
+       |      $p
+       |      '}'
+       |  ) AS json
+       |FROM
+       |  $tableName
+       |""".stripMargin + joinString + joins.mkString("\n"), "")
   }
 }
 
 class Wiring {
-  def forJsonString(js: JsonString): String = js.toSql
-
   def forJsonObject(key: String, bluePrint: JsonObject): String = {
     val tableDefinition = bluePrint.td.get.asInstanceOf[LeafTableDefinition]
     val tail = tableDefinition match {
@@ -88,7 +113,7 @@ class Wiring {
     }
     val properties = bluePrint.properties.map { p =>
       p._2 match {
-        case js: JsonString => s""" '"${p._1}":', ${js.toSql}, """
+        case js: JsonString => s""" '"${p._1}":', ${js.toSql._1}, """
         case jo: JsonObject => s""" '"${p._1}":[', GROUP_CONCAT(${p._1}.json SEPARATOR ','), ']',"""
       }
     }.mkString("")
