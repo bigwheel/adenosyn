@@ -85,7 +85,7 @@ class WiringSpec extends FunSpec with Matchers {
     obj.map { m => m.updated("json", m("json").asInstanceOf[String].parseOption.get) }
   }
 
-  it("もっとも簡単なテーブル定義を変換できる") {
+  it("最も単純なjsonオブジェクトを組み立てられる") {
     val subject = youseibox.JsonObject(
       RootTableDefinition(
         "artist"
@@ -96,6 +96,22 @@ class WiringSpec extends FunSpec with Matchers {
     )
     SQL(Wiring.renderSql(subject)).map(_.toMap).list.apply() |> asJsonObj should equal(
       List(Map("id" -> 1, "name" -> "水樹奈々", "json" -> Json("name" := "水樹奈々")))
+    )
+  }
+
+  it("複数プロパティのjsonオブジェクトを組み立てられる") {
+    val subject = youseibox.JsonObject(
+      RootTableDefinition(
+        "artist"
+      ).some,
+      Map[String, JsonValue](
+        "id" -> JsonInt("artist.id"),
+        "name" -> JsonString("artist.name")
+      )
+    )
+    println(SQL(Wiring.renderSql(subject)).map(_.toMap).list.apply())
+    SQL(Wiring.renderSql(subject)).map(_.toMap).list.apply() |> asJsonObj should equal(
+      List(Map("id" -> 1, "name" -> "水樹奈々", "json" -> Json("id" := 1, "name" := "水樹奈々")))
     )
   }
 }

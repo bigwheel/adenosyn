@@ -38,21 +38,31 @@ case class LeafOneToManyTableDefinition(
   val relation = OneToMany
 }
 
-trait JsonValue
+trait JsonValue {
+  def toSql: String
+}
 
-case class JsonString(val refer: String) extends JsonValue
+case class JsonString(val columnName: String) extends JsonValue {
+  def toSql = s"""'"', $columnName, '"'"""
+}
+
+case class JsonInt(val columnName: String) extends JsonValue {
+  def toSql = columnName
+}
 
 case class JsonObject(
   td: Option[TableDefinition],
   properties: Map[String, JsonValue]
-) extends JsonValue
+) extends JsonValue {
+  def toSql = ""
+}
 
 object Wiring {
   def renderSql(jo: JsonObject): String = {
     val tableName = jo.td.get.asInstanceOf[RootTableDefinition].name
     val properties = jo.properties.map { case (k, v) =>
-      s"""'"$k":"', ${v.asInstanceOf[JsonString].refer}, '"',"""
-    }.mkString
+      s"""'"$k":', ${v.toSql},"""
+    }.mkString("',',")
     s"""
       |SELECT
       |  $tableName.*,
@@ -68,7 +78,7 @@ object Wiring {
 }
 
 class Wiring {
-  def forJsonString(js: JsonString): String = js.refer
+  def forJsonString(js: JsonString): String = js.toSql
 
   def forJsonObject(key: String, bluePrint: JsonObject): String = {
     val tableDefinition = bluePrint.td.get.asInstanceOf[LeafTableDefinition]
@@ -78,7 +88,7 @@ class Wiring {
     }
     val properties = bluePrint.properties.map { p =>
       p._2 match {
-        case js: JsonString => s""" '"${p._1}":"', ${js.refer}, '"', """
+        case js: JsonString => s""" '"${p._1}":', ${js.toSql}, """
         case jo: JsonObject => s""" '"${p._1}":[', GROUP_CONCAT(${p._1}.json SEPARATOR ','), ']',"""
       }
     }.mkString("")
