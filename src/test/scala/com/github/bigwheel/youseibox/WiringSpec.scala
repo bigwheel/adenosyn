@@ -94,7 +94,7 @@ class WiringSpec extends FunSpec with Matchers {
         "name" -> JsonString("artist.name")
       )
     )
-    SQL(subject.toSql._1).map(_.toMap).list.apply() |> asJsonObj should equal(
+    SQL(subject.toSql.selectMain).map(_.toMap).list.apply() |> asJsonObj should equal(
       List(Map("id" -> 1, "name" -> "水樹奈々",
         "json" -> Json("name" := "水樹奈々")
       ))
@@ -111,7 +111,7 @@ class WiringSpec extends FunSpec with Matchers {
         "name" -> JsonString("artist.name")
       )
     )
-    SQL(subject.toSql._1).map(_.toMap).list.apply() |> asJsonObj should equal(
+    SQL(subject.toSql.selectMain).map(_.toMap).list.apply() |> asJsonObj should equal(
       List(Map("id" -> 1, "name" -> "水樹奈々",
         "json" -> Json("id" := 1, "name" := "水樹奈々")
       ))
@@ -132,7 +132,7 @@ class WiringSpec extends FunSpec with Matchers {
         "kana" -> JsonString("artist_kana.kana")
       )
     )
-    SQL(subject.toSql._1).map(_.toMap).list.apply() |> asJsonObj should equal(
+    SQL(subject.toSql.selectMain).map(_.toMap).list.apply() |> asJsonObj should equal(
       List(Map("id" -> 1, "name" -> "水樹奈々",
         "json" -> Json("name" := "水樹奈々", "kana" := "みずきなな")
       ))
@@ -156,7 +156,7 @@ class WiringSpec extends FunSpec with Matchers {
         )
       )
     )
-    SQL(subject.toSql._1).map(_.toMap).list.apply() |> asJsonObj should equal(
+    SQL(subject.toSql.selectMain).map(_.toMap).list.apply() |> asJsonObj should equal(
       List(Map("id" -> 1, "name" -> "水樹奈々",
         "json" -> Json(
           "name" := "水樹奈々",
@@ -188,7 +188,7 @@ class WiringSpec extends FunSpec with Matchers {
         )
       )
     )
-    SQL(subject.toSql._1).map(_.toMap).list.apply() |> asJsonObj should equal(
+    SQL(subject.toSql.selectMain).map(_.toMap).list.apply() |> asJsonObj should equal(
       List(Map("id" -> 1, "name" -> "水樹奈々",
         "json" -> Json(
           "name" := "水樹奈々",
@@ -216,7 +216,7 @@ class WiringSpec extends FunSpec with Matchers {
         )
       )
     )
-    SQL(subject.toSql._1).map(_.toMap).list.apply() |> asJsonObj should equal(
+    SQL(subject.toSql.selectMain).map(_.toMap).list.apply() |> asJsonObj should equal(
       List(Map("id" -> 1, "name" -> "水樹奈々",
         "json" -> Json(
           "name" := "水樹奈々",
@@ -243,7 +243,7 @@ class WiringSpec extends FunSpec with Matchers {
         )
       )
     )
-    SQL(subject.toSql._1).map(_.toMap).list.apply() |> asJsonObj should equal(
+    SQL(subject.toSql.selectMain).map(_.toMap).list.apply() |> asJsonObj should equal(
       List(Map("id" -> 1, "name" -> "水樹奈々",
         "json" -> Json(
           "name" := "水樹奈々",
@@ -289,7 +289,7 @@ class WiringSpec extends FunSpec with Matchers {
         )
       )
     )
-    SQL(subject.toSql._1).map(_.toMap).list.apply() |> asJsonObj should equal(
+    SQL(subject.toSql.selectMain).map(_.toMap).list.apply() |> asJsonObj should equal(
       List(Map("id" -> 1, "name" -> "水樹奈々",
         "json" -> Json(
           "name" := "水樹奈々",

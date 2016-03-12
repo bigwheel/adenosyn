@@ -38,16 +38,31 @@ case class LeafOneToManyTableDefinition(
   val relation = OneToMany
 }
 
+case class SqlFragment(
+  preProcess: Seq[String],
+  selectMain: String,
+  joinFragment: Option[String],
+  postProcess: Seq[String]
+)
+
+object SqlFragment {
+  def apply(selectMain: String, joinFragment: String): SqlFragment =
+    this.apply(Nil, selectMain, Some(joinFragment), Nil)
+
+  def apply(selectMain: String): SqlFragment =
+    this.apply(Nil, selectMain, None, Nil)
+}
+
 trait JsonValue {
-  def toSql: (String, String)
+  def toSql: SqlFragment
 }
 
 case class JsonString(val columnName: String) extends JsonValue {
-  def toSql = (s"""'"', $columnName, '"'""", "")
+  def toSql = SqlFragment(s"""'"', $columnName, '"'""")
 }
 
 case class JsonInt(val columnName: String) extends JsonValue {
-  def toSql = (columnName, "")
+  def toSql = SqlFragment(columnName)
 }
 
 case class JsonArray(
@@ -57,8 +72,8 @@ case class JsonArray(
   def toSql = {
     // TODO: Noneの場合のコードも書け
     val tableDefinition = td.get.asInstanceOf[LeafOneToManyTableDefinition]
-    (
-      s"""'[', GROUP_CONCAT(${value.toSql._1} SEPARATOR ','), ']'""",
+    SqlFragment(
+      s"""'[', GROUP_CONCAT(${value.toSql.selectMain} SEPARATOR ','), ']'""",
       s"""
          |JOIN
          |  ${tableDefinition.name}
@@ -90,10 +105,10 @@ case class JsonObject(
         // TODO ここscalazの元の概念(モナドかも？)を使えばこんな無様なコードにはならない
         val tableName = tableDefinition.name
         val p = properties.map { case (k, v) =>
-          s"""'"$k":', ${v.toSql._1},"""
+          s"""'"$k":', ${v.toSql.selectMain},"""
         }.mkString("',',")
-        val joins = properties.values.map(_.toSql._2).mkString("\n")
-        (
+        val joins = properties.values.flatMap(_.toSql.joinFragment).mkString("\n")
+        SqlFragment(
           s"""
             |SELECT
             |  $tableName.*,
@@ -109,10 +124,10 @@ case class JsonObject(
       case None =>
         // 上と重複コードあり。気を見て統合する
         val p = properties.map { case (k, v) =>
-          s"""'"$k":', ${v.toSql._1},"""
+          s"""'"$k":', ${v.toSql.selectMain},"""
         }.mkString("',',")
-        val joins = properties.values.map(_.toSql._2).mkString("\n")
-        (
+        val joins = properties.values.flatMap(_.toSql.joinFragment).mkString("\n")
+        SqlFragment(
           s"""
              |  CONCAT(
              |      '{',
@@ -135,7 +150,7 @@ class Wiring {
     }
     val properties = bluePrint.properties.map { p =>
       p._2 match {
-        case js: JsonString => s""" '"${p._1}":', ${js.toSql._1}, """
+        case js: JsonString => s""" '"${p._1}":', ${js.toSql.selectMain}, """
         case jo: JsonObject => s""" '"${p._1}":[', GROUP_CONCAT(${p._1}.json SEPARATOR ','), ']',"""
       }
     }.mkString("")
