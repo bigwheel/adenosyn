@@ -63,3 +63,35 @@ SELECT
 FROM
   artist
 ;
+
+EXPLAIN SELECT
+  artist.*,
+  CONCAT(
+      '{',
+      '"name":', '"', artist.name, '"', ',',
+      '"musics":', '[', GROUP_CONCAT('"', music.name, '"' SEPARATOR ','), ']',
+      '}'
+  ) AS json
+FROM artist
+JOIN music
+ON artist.id = music.artist_id
+GROUP BY artist.id;
+
+EXPLAIN SELECT
+  artist.*,
+  CONCAT(
+      '{',
+      '"name":', '"', artist.name, '"', ',',
+      '"musics":', '[', musics.names, ']',
+      '}'
+  ) AS json
+FROM artist
+JOIN (
+    SELECT
+      music.artist_id,
+      GROUP_CONCAT('"', music.name, '"' SEPARATOR ',') AS names
+    FROM music
+    GROUP BY music.artist_id
+) as musics
+ON artist.id = musics.artist_id
+;

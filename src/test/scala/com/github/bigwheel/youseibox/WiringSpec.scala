@@ -253,6 +253,52 @@ class WiringSpec extends FunSpec with Matchers {
     )
   }
 
+  it("ネストが二重でも組み立てられる") {
+    val subject = youseibox.JsonObject(
+      RootTableDefinition(
+        "artist"
+      ).some,
+      Map[String, JsonValue](
+        "name" -> JsonString("artist.name"),
+        "musics" -> JsonArray(
+          LeafOneToManyTableDefinition(
+            "music",
+            "artist.id = music.artist_id",
+            "artist.id"
+          ).some,
+          youseibox.JsonObject(
+            LeafOneToManyTableDefinition(
+              "music",
+              "artist.id = music.artist_id",
+              "artist.id"
+            ).some,
+            Map[String, JsonValue](
+              "name" -> JsonString("music.name"),
+              "contents" -> youseibox.JsonObject(
+                LeafOneToManyTableDefinition(
+                  "content",
+                  "music.id = content.music_id", // ここのjoinRuleが
+                  "music.id" // 外のcontentsという名前に引きづられるのいや
+                ).some,
+                Map[String, JsonValue](
+                  "name" -> JsonString("content.name")
+                )
+              )
+            )
+          )
+        )
+      )
+    )
+    SQL(subject.toSql._1).map(_.toMap).list.apply() |> asJsonObj should equal(
+      List(Map("id" -> 1, "name" -> "水樹奈々",
+        "json" -> Json(
+          "name" := "水樹奈々",
+          "musics" := Json.array(jString("深愛"), jString("innocent starter"))
+        )
+      ))
+    )
+  }
+
   it ("Optionで型を指定しているようなデータ構造はきっちりNoneを渡した時のテストも書いておくこと") {
     pending
   }
