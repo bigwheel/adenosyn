@@ -72,41 +72,63 @@ case class JsonArray(
 }
 
 case class JsonObject(
-  td: Option[TableDefinition],
+  tdo: Option[TableDefinition],
   properties: Map[String, JsonValue]
 ) extends JsonValue {
   def toSql = {
-    val tableDefinition = td.get.asInstanceOf[RootTableDefinition] // TODO: Noneの場合のコードも書け
-    val joinString = tableDefinition.chain.map { innerTd =>
-      s"""
-         |JOIN
-         |  ${innerTd.name}
-         |ON
-         |  ${innerTd.joinRule}
-         |""".stripMargin
-    }.getOrElse("") // TODO ここscalazの元の概念(モナドかも？)を使えばこんな無様なコードにはならない
-    val tableName = tableDefinition.name
-    val p = properties.map { case (k, v) =>
-      s"""'"$k":', ${v.toSql._1},"""
-    }.mkString("',',")
-    val joins = properties.values.map(_.toSql._2)
-    (s"""
-       |SELECT
-       |  $tableName.*,
-       |  CONCAT(
-       |      '{',
-       |      $p
-       |      '}'
-       |  ) AS json
-       |FROM
-       |  $tableName
-       |""".stripMargin + joinString + joins.mkString("\n"), "")
+    tdo match {
+      case Some(td) =>
+        val tableDefinition = td.asInstanceOf[RootTableDefinition]
+        val joinString = tableDefinition.chain.map { innerTd =>
+          s"""
+             |JOIN
+             |  ${innerTd.name}
+             |ON
+             |  ${innerTd.joinRule}
+             |""".stripMargin
+        }.getOrElse("")
+        // TODO ここscalazの元の概念(モナドかも？)を使えばこんな無様なコードにはならない
+        val tableName = tableDefinition.name
+        val p = properties.map { case (k, v) =>
+          s"""'"$k":', ${v.toSql._1},"""
+        }.mkString("',',")
+        val joins = properties.values.map(_.toSql._2).mkString("\n")
+        (
+          s"""
+            |SELECT
+            |  $tableName.*,
+            |  CONCAT(
+            |      '{',
+            |      $p
+            |      '}'
+            |  ) AS json
+            |FROM
+            |  $tableName
+            |""".stripMargin + joinString +
+          joins, "")
+      case None =>
+        // 上と重複コードあり。気を見て統合する
+        val p = properties.map { case (k, v) =>
+          s"""'"$k":', ${v.toSql._1},"""
+        }.mkString("',',")
+        val joins = properties.values.map(_.toSql._2).mkString("\n")
+        (
+          s"""
+             |  CONCAT(
+             |      '{',
+             |      $p
+             |      '}'
+             |  )
+             |""".stripMargin
+          , joins
+          )
+    }
   }
 }
 
 class Wiring {
   def forJsonObject(key: String, bluePrint: JsonObject): String = {
-    val tableDefinition = bluePrint.td.get.asInstanceOf[LeafTableDefinition]
+    val tableDefinition = bluePrint.tdo.get.asInstanceOf[LeafTableDefinition]
     val tail = tableDefinition match {
       case l: LeafOneToManyTableDefinition => "GROUP BY\n  " + l.parentGroupByColumn
       case _ => ""

@@ -226,6 +226,33 @@ class WiringSpec extends FunSpec with Matchers {
     )
   }
 
+  it("jsonオブジェクトが配列の中だとしても組み立てられる") {
+    val subject = youseibox.JsonObject(
+      RootTableDefinition(
+        "artist"
+      ).some,
+      Map[String, JsonValue](
+        "name" -> JsonString("artist.name"),
+        "musics" -> JsonArray(
+          LeafOneToManyTableDefinition(
+            "music",
+            "artist.id = music.artist_id",
+            "artist.id"
+          ).some,
+          youseibox.JsonObject(None, Map[String, JsonValue]("name" -> JsonString("music.name")))
+        )
+      )
+    )
+    SQL(subject.toSql._1).map(_.toMap).list.apply() |> asJsonObj should equal(
+      List(Map("id" -> 1, "name" -> "水樹奈々",
+        "json" -> Json(
+          "name" := "水樹奈々",
+          "musics" := Json.array(Json("name" := "深愛"), Json("name" := "innocent starter"))
+        )
+      ))
+    )
+  }
+
   it ("Optionで型を指定しているようなデータ構造はきっちりNoneを渡した時のテストも書いておくこと") {
     pending
   }
