@@ -92,9 +92,10 @@ case class JsonObject(
 ) extends JsonValue {
   def toSql = {
     tdo match {
-      case Some(td) =>
-        val tableDefinition = td.asInstanceOf[RootTableDefinition]
-        val joinString = tableDefinition.chain.map { innerTd =>
+      case Some(tableDefinition: LeafTableDefinition) =>
+        throw new IllegalStateException("")
+      case Some(tableDefinition: RootTableDefinition) =>
+        val joinStringForDirectBoundedTables = tableDefinition.chain.map { innerTd =>
           s"""
              |JOIN
              |  ${innerTd.name}
@@ -107,8 +108,9 @@ case class JsonObject(
         val p = properties.map { case (k, v) =>
           s"""'"$k":', ${v.toSql.selectMain},"""
         }.mkString("',',")
-        val joins = properties.values.flatMap(_.toSql.joinFragment).mkString("\n")
+        val joinStringForChildTables = properties.values.flatMap(_.toSql.joinFragment).mkString("\n")
         SqlFragment(
+          properties.values.flatMap(_.toSql.preProcess).toSeq,
           s"""
             |SELECT
             |  $tableName.*,
@@ -119,8 +121,11 @@ case class JsonObject(
             |  ) AS json
             |FROM
             |  $tableName
-            |""".stripMargin + joinString +
-          joins, "")
+            |""".stripMargin + joinStringForDirectBoundedTables +
+          joinStringForChildTables,
+          Some(""),
+          properties.values.flatMap(_.toSql.postProcess).toSeq
+        )
       case None =>
         // 上と重複コードあり。気を見て統合する
         val p = properties.map { case (k, v) =>

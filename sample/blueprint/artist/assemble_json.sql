@@ -95,3 +95,30 @@ JOIN (
 ) as musics
 ON artist.id = musics.artist_id
 ;
+
+
+
+CREATE VIEW v_musics AS
+SELECT
+  music.artist_id,
+  CONCAT('[', GROUP_CONCAT('"', music.name, '"' SEPARATOR ','), ']') AS names
+FROM music
+GROUP BY music.artist_id
+;
+
+SELECT * FROM v_musics;
+
+SELECT
+  artist.*,
+  CONCAT(
+      '{',
+      '"name":', '"', artist.name, '"', ',',
+      '"musics":', v_musics.names,
+      '}'
+  ) AS json
+FROM artist
+JOIN v_musics
+ON artist.id = v_musics.artist_id
+;
+
+DROP VIEW v_musics;

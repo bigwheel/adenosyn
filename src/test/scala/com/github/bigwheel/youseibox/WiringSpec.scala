@@ -85,110 +85,103 @@ class WiringSpec extends FunSpec with Matchers {
     obj.map { m => m.updated("json", m("json").asInstanceOf[String].parseOption.get) }
   }
 
-  it("最も単純なjsonオブジェクトを組み立てられる") {
-    val subject = youseibox.JsonObject(
-      RootTableDefinition(
-        "artist"
-      ).some,
-      Map[String, JsonValue](
-        "name" -> JsonString("artist.name")
-      )
-    )
-    SQL(subject.toSql.selectMain).map(_.toMap).list.apply() |> asJsonObj should equal(
+  val tests = Seq(
+    (
+      "最も単純なjsonオブジェクトを組み立てられる",
+      youseibox.JsonObject(
+        RootTableDefinition(
+          "artist"
+        ).some,
+        Map[String, JsonValue](
+          "name" -> JsonString("artist.name")
+        )
+      ),
       List(Map("id" -> 1, "name" -> "水樹奈々",
         "json" -> Json("name" := "水樹奈々")
       ))
-    )
-  }
-
-  it("複数プロパティのjsonオブジェクトを組み立てられる") {
-    val subject = youseibox.JsonObject(
-      RootTableDefinition(
-        "artist"
-      ).some,
-      Map[String, JsonValue](
-        "id" -> JsonInt("artist.id"),
-        "name" -> JsonString("artist.name")
-      )
-    )
-    SQL(subject.toSql.selectMain).map(_.toMap).list.apply() |> asJsonObj should equal(
+    ),
+    (
+      "複数プロパティのjsonオブジェクトを組み立てられる",
+      youseibox.JsonObject(
+        RootTableDefinition(
+          "artist"
+        ).some,
+        Map[String, JsonValue](
+          "id" -> JsonInt("artist.id"),
+          "name" -> JsonString("artist.name")
+        )
+      ),
       List(Map("id" -> 1, "name" -> "水樹奈々",
         "json" -> Json("id" := 1, "name" := "水樹奈々")
       ))
-    )
-  }
-
-  it("単純チェインのテーブルJOINでjsonオブジェクトを組み立てられる") {
-    val subject = youseibox.JsonObject(
-      RootTableDefinition(
-        "artist",
-        LeafOneToOneTableDefinition(
-          "artist_kana",
-          "artist.id = artist_kana.artist_id"
-        ).some
-      ).some,
-      Map[String, JsonValue](
-        "name" -> JsonString("artist.name"),
-        "kana" -> JsonString("artist_kana.kana")
-      )
-    )
-    SQL(subject.toSql.selectMain).map(_.toMap).list.apply() |> asJsonObj should equal(
+    ),
+    (
+      "単純チェインのテーブルJOINでjsonオブジェクトを組み立てられる",
+      youseibox.JsonObject(
+        RootTableDefinition(
+          "artist",
+          LeafOneToOneTableDefinition(
+            "artist_kana",
+            "artist.id = artist_kana.artist_id"
+          ).some
+        ).some,
+        Map[String, JsonValue](
+          "name" -> JsonString("artist.name"),
+          "kana" -> JsonString("artist_kana.kana")
+        )
+      ),
       List(Map("id" -> 1, "name" -> "水樹奈々",
         "json" -> Json("name" := "水樹奈々", "kana" := "みずきなな")
       ))
-    )
-  }
-
-  it("jsonオブジェクトがネストしていても組み立てられる") {
-    val subject = youseibox.JsonObject(
-      RootTableDefinition(
-        "artist"
-      ).some,
-      Map[String, JsonValue](
-        "name" -> JsonString("artist.name"),
-        "musics" -> JsonArray(
-          LeafOneToManyTableDefinition(
-            "music",
-            "artist.id = music.artist_id",
-            "artist.id"
-          ).some,
-          JsonString("music.name")
+    ),
+    (
+      "jsonオブジェクトがネストしていても組み立てられる",
+      youseibox.JsonObject(
+        RootTableDefinition(
+          "artist"
+        ).some,
+        Map[String, JsonValue](
+          "name" -> JsonString("artist.name"),
+          "musics" -> JsonArray(
+            LeafOneToManyTableDefinition(
+              "music",
+              "artist.id = music.artist_id",
+              "artist.id"
+            ).some,
+            JsonString("music.name")
+          )
         )
-      )
-    )
-    SQL(subject.toSql.selectMain).map(_.toMap).list.apply() |> asJsonObj should equal(
+      ),
       List(Map("id" -> 1, "name" -> "水樹奈々",
         "json" -> Json(
           "name" := "水樹奈々",
           "musics" := Json.array(jString("深愛"), jString("innocent starter"))
         )
       ))
-    )
-  }
-
-  it("ネストと直列JOINが両方あっても組み立てられる") {
-    val subject = youseibox.JsonObject(
-      RootTableDefinition(
-        "artist",
-        LeafOneToOneTableDefinition(
-          "artist_kana",
-          "artist.id = artist_kana.artist_id"
-        ).some
-      ).some,
-      Map[String, JsonValue](
-        "name" -> JsonString("artist.name"),
-        "kana" -> JsonString("artist_kana.kana"),
-        "musics" -> JsonArray(
-          LeafOneToManyTableDefinition(
-            "music",
-            "artist.id = music.artist_id",
-            "artist.id"
-          ).some,
-          JsonString("music.name")
+    ),
+    (
+      "ネストと直列JOINが両方あっても組み立てられる",
+      youseibox.JsonObject(
+        RootTableDefinition(
+          "artist",
+          LeafOneToOneTableDefinition(
+            "artist_kana",
+            "artist.id = artist_kana.artist_id"
+          ).some
+        ).some,
+        Map[String, JsonValue](
+          "name" -> JsonString("artist.name"),
+          "kana" -> JsonString("artist_kana.kana"),
+          "musics" -> JsonArray(
+            LeafOneToManyTableDefinition(
+              "music",
+              "artist.id = music.artist_id",
+              "artist.id"
+            ).some,
+            JsonString("music.name")
+          )
         )
-      )
-    )
-    SQL(subject.toSql.selectMain).map(_.toMap).list.apply() |> asJsonObj should equal(
+      ),
       List(Map("id" -> 1, "name" -> "水樹奈々",
         "json" -> Json(
           "name" := "水樹奈々",
@@ -196,100 +189,94 @@ class WiringSpec extends FunSpec with Matchers {
           "musics" := Json.array(jString("深愛"), jString("innocent starter"))
         )
       ))
-    )
-  }
-
-  it("ネスト内からネスト外のカラムを参照できる") {
-    val subject = youseibox.JsonObject(
-      RootTableDefinition(
-        "artist"
-      ).some,
-      Map[String, JsonValue](
-        "name" -> JsonString("artist.name"),
-        "musics" -> JsonArray(
-          LeafOneToManyTableDefinition(
-            "music",
-            "artist.id = music.artist_id",
-            "artist.id"
-          ).some,
-          JsonInt("artist.id")
+    ),
+    (
+      "ネスト内からネスト外のカラムを参照できる",
+      youseibox.JsonObject(
+        RootTableDefinition(
+          "artist"
+        ).some,
+        Map[String, JsonValue](
+          "name" -> JsonString("artist.name"),
+          "musics" -> JsonArray(
+            LeafOneToManyTableDefinition(
+              "music",
+              "artist.id = music.artist_id",
+              "artist.id"
+            ).some,
+            JsonInt("artist.id")
+          )
         )
-      )
-    )
-    SQL(subject.toSql.selectMain).map(_.toMap).list.apply() |> asJsonObj should equal(
+      ),
       List(Map("id" -> 1, "name" -> "水樹奈々",
         "json" -> Json(
           "name" := "水樹奈々",
           "musics" := Json.array(jNumber(1), jNumber(1))
         )
       ))
-    )
-  }
-
-  it("jsonオブジェクトが配列の中だとしても組み立てられる") {
-    val subject = youseibox.JsonObject(
-      RootTableDefinition(
-        "artist"
-      ).some,
-      Map[String, JsonValue](
-        "name" -> JsonString("artist.name"),
-        "musics" -> JsonArray(
-          LeafOneToManyTableDefinition(
-            "music",
-            "artist.id = music.artist_id",
-            "artist.id"
-          ).some,
-          youseibox.JsonObject(None, Map[String, JsonValue]("name" -> JsonString("music.name")))
+    ),
+    (
+      "jsonオブジェクトが配列の中だとしても組み立てられる",
+      youseibox.JsonObject(
+        RootTableDefinition(
+          "artist"
+        ).some,
+        Map[String, JsonValue](
+          "name" -> JsonString("artist.name"),
+          "musics" -> JsonArray(
+            LeafOneToManyTableDefinition(
+              "music",
+              "artist.id = music.artist_id",
+              "artist.id"
+            ).some,
+            youseibox.JsonObject(None, Map[String, JsonValue]("name" -> JsonString("music.name")))
+          )
         )
-      )
-    )
-    SQL(subject.toSql.selectMain).map(_.toMap).list.apply() |> asJsonObj should equal(
+      ),
       List(Map("id" -> 1, "name" -> "水樹奈々",
         "json" -> Json(
           "name" := "水樹奈々",
           "musics" := Json.array(Json("name" := "深愛"), Json("name" := "innocent starter"))
         )
       ))
-    )
-  }
-
-  it("ネストが二重でも組み立てられる") {
-    val subject = youseibox.JsonObject(
-      RootTableDefinition(
-        "artist"
-      ).some,
-      Map[String, JsonValue](
-        "name" -> JsonString("artist.name"),
-        "musics" -> JsonArray(
-          LeafOneToManyTableDefinition(
-            "music",
-            "artist.id = music.artist_id",
-            "artist.id"
-          ).some,
-          youseibox.JsonObject(
+    ),
+    (
+      "ネストが二重でも組み立てられる",
+      youseibox.JsonObject(
+        RootTableDefinition(
+          "artist"
+        ).some,
+        Map[String, JsonValue](
+          "name" -> JsonString("artist.name"),
+          "musics" -> JsonArray(
             LeafOneToManyTableDefinition(
               "music",
               "artist.id = music.artist_id",
               "artist.id"
             ).some,
-            Map[String, JsonValue](
-              "name" -> JsonString("music.name"),
-              "contents" -> youseibox.JsonObject(
-                LeafOneToManyTableDefinition(
-                  "content",
-                  "music.id = content.music_id", // ここのjoinRuleが
-                  "music.id" // 外のcontentsという名前に引きづられるのいや
-                ).some,
-                Map[String, JsonValue](
-                  "name" -> JsonString("content.name")
+            youseibox.JsonObject(
+              LeafOneToManyTableDefinition(
+                "music",
+                "artist.id = music.artist_id",
+                "artist.id"
+              ).some,
+              Map[String, JsonValue](
+                "name" -> JsonString("music.name"),
+                "contents" -> youseibox.JsonObject(
+                  LeafOneToManyTableDefinition(
+                    "content",
+                    "music.id = content.music_id", // ここのjoinRuleが
+                    "music.id" // 外のcontentsという名前に引きづられるのいや
+                  ).some,
+                  Map[String, JsonValue](
+                    "name" -> JsonString("content.name")
+                  )
                 )
               )
             )
           )
         )
-      )
-    )
-    SQL(subject.toSql.selectMain).map(_.toMap).list.apply() |> asJsonObj should equal(
+      ),
       List(Map("id" -> 1, "name" -> "水樹奈々",
         "json" -> Json(
           "name" := "水樹奈々",
@@ -297,6 +284,14 @@ class WiringSpec extends FunSpec with Matchers {
         )
       ))
     )
+  )
+
+  for (test <- tests) {
+    //test._2.toSql.preProcess.foreach(SQL(_).execute.apply())
+    it(test._1) {
+      SQL(test._2.toSql.selectMain).map(_.toMap).list.apply() |> asJsonObj should equal(test._3)
+    }
+    //test._2.toSql.postProcess.foreach(SQL(_).execute.apply())
   }
 
   it ("Optionで型を指定しているようなデータ構造はきっちりNoneを渡した時のテストも書いておくこと") {
