@@ -1,5 +1,6 @@
 package com.github.bigwheel.youseibox
 
+import scala.util.Random
 import scalaz.Scalaz._
 
 sealed abstract class Relation
@@ -72,17 +73,27 @@ case class JsonArray(
   def toSql = {
     // TODO: Noneの場合のコードも書け
     val tableDefinition = td.get.asInstanceOf[LeafOneToManyTableDefinition]
+    val temporaryViewName = Random.alphanumeric.take(10).mkString
+    val preProcess = s"""
+       |CREATE VIEW v_musics AS
+       |SELECT
+       |  ${tableDefinition.name}.artist_id,
+       |  CONCAT('[', GROUP_CONCAT(${value.toSql.selectMain} SEPARATOR ','), ']') AS names
+       |FROM ${tableDefinition.name}
+       |GROUP BY ${tableDefinition.name}.artist_id
+     """.stripMargin
+    val postProcess = "DROP VIEW if exists v_musics"
     SqlFragment(
-      s"""'[', GROUP_CONCAT(${value.toSql.selectMain} SEPARATOR ','), ']'""",
+      value.toSql.preProcess :+ preProcess,
+      s"""v_musics.names""",
       s"""
          |JOIN
-         |  ${tableDefinition.name}
+         |  v_musics
          |ON
-         |  ${tableDefinition.joinRule}
-         |GROUP BY
-         |  ${tableDefinition.parentGroupByColumn}
-         |""".stripMargin
-      )
+         |  artist.id = v_musics.artist_id
+         |""".stripMargin.some,
+      postProcess +: value.toSql.postProcess
+    )
   }
 }
 

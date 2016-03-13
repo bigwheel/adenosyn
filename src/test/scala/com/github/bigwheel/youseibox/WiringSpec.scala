@@ -82,7 +82,10 @@ class WiringSpec extends FunSpec with Matchers {
   }
 
   def asJsonObj(obj: List[Map[String, Any]]): List[Map[String, Any]] = {
-    obj.map { m => m.updated("json", m("json").asInstanceOf[String].parseOption.get) }
+    obj.map { m =>
+      println(m("json").asInstanceOf[String])
+      m.updated("json", m("json").asInstanceOf[String].parseOption.get)
+    }
   }
 
   val tests = Seq(
@@ -287,11 +290,14 @@ class WiringSpec extends FunSpec with Matchers {
   )
 
   for (test <- tests) {
-    //test._2.toSql.preProcess.foreach(SQL(_).execute.apply())
     it(test._1) {
-      SQL(test._2.toSql.selectMain).map(_.toMap).list.apply() |> asJsonObj should equal(test._3)
+      test._2.toSql.preProcess.foreach(SQL(_).execute.apply())
+      try {
+        SQL(test._2.toSql.selectMain).map(_.toMap).list.apply() |> asJsonObj should equal(test._3)
+      } finally {
+        test._2.toSql.postProcess.foreach(SQL(_).execute.apply())
+      }
     }
-    //test._2.toSql.postProcess.foreach(SQL(_).execute.apply())
   }
 
   it ("Optionで型を指定しているようなデータ構造はきっちりNoneを渡した時のテストも書いておくこと") {
