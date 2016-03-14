@@ -148,7 +148,7 @@ class WiringSpec extends FunSpec with Matchers {
           "musics" -> JsonArray(
             LeafOneToManyTableDefinition(
               "music",
-              "artist.id = music.artist_id",
+              "artist_id",
               "artist.id"
             ).some,
             JsonString("music.name")
@@ -178,7 +178,7 @@ class WiringSpec extends FunSpec with Matchers {
           "musics" -> JsonArray(
             LeafOneToManyTableDefinition(
               "music",
-              "artist.id = music.artist_id",
+              "artist_id",
               "artist.id"
             ).some,
             JsonString("music.name")
@@ -204,7 +204,7 @@ class WiringSpec extends FunSpec with Matchers {
           "musics" -> JsonArray(
             LeafOneToManyTableDefinition(
               "music",
-              "artist.id = music.artist_id",
+              "artist_id",
               "artist.id"
             ).some,
             JsonInt("artist.id")
@@ -229,7 +229,7 @@ class WiringSpec extends FunSpec with Matchers {
           "musics" -> JsonArray(
             LeafOneToManyTableDefinition(
               "music",
-              "artist.id = music.artist_id",
+              "artist_id",
               "artist.id"
             ).some,
             youseibox.JsonObject(None, Map[String, JsonValue]("name" -> JsonString("music.name")))
@@ -254,13 +254,13 @@ class WiringSpec extends FunSpec with Matchers {
           "musics" -> JsonArray(
             LeafOneToManyTableDefinition(
               "music",
-              "artist.id = music.artist_id",
+              "artist_id",
               "artist.id"
             ).some,
             youseibox.JsonObject(
               LeafOneToManyTableDefinition(
                 "music",
-                "artist.id = music.artist_id",
+                "artist_id",
                 "artist.id"
               ).some,
               Map[String, JsonValue](
@@ -268,8 +268,8 @@ class WiringSpec extends FunSpec with Matchers {
                 "contents" -> youseibox.JsonObject(
                   LeafOneToManyTableDefinition(
                     "content",
-                    "music.id = content.music_id", // ここのjoinRuleが
-                    "music.id" // 外のcontentsという名前に引きづられるのいや
+                    "music_id",
+                    "music.id"
                   ).some,
                   Map[String, JsonValue](
                     "name" -> JsonString("content.name")
@@ -291,11 +291,13 @@ class WiringSpec extends FunSpec with Matchers {
 
   for (test <- tests) {
     it(test._1) {
-      test._2.toSql.preProcess.foreach(SQL(_).execute.apply())
+      val sqls = test._2.toSql
+      //println(sqls)
+      sqls.preProcess.foreach(SQL(_).execute.apply())
       try {
-        SQL(test._2.toSql.selectMain).map(_.toMap).list.apply() |> asJsonObj should equal(test._3)
+        SQL(sqls.selectMain).map(_.toMap).list.apply() |> asJsonObj should equal(test._3)
       } finally {
-        test._2.toSql.postProcess.foreach(SQL(_).execute.apply())
+        sqls.postProcess.foreach(SQL(_).execute.apply())
       }
     }
   }

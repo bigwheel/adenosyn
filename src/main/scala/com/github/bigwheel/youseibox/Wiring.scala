@@ -18,7 +18,6 @@ case class RootTableDefinition(
 ) extends TableDefinition
 
 trait LeafTableDefinition extends TableDefinition {
-  val joinRule: String // 親との接続ルール
   val relation: Relation
 }
 
@@ -32,8 +31,8 @@ case class LeafOneToOneTableDefinition(
 
 case class LeafOneToManyTableDefinition(
   val name: String,
-  val joinRule: String,
-  val parentGroupByColumn: String,
+  val childColumnForJoin: String,
+  val parentColumnForGroupBy: String,
   val chain: Option[LeafOneToOneTableDefinition] = None
 ) extends LeafTableDefinition {
   val relation = OneToMany
@@ -70,27 +69,27 @@ case class JsonArray(
   td: Option[TableDefinition],
   value: JsonValue
 ) extends JsonValue {
-  def toSql = {
+  lazy val toSql = {
     // TODO: Noneの場合のコードも書け
     val tableDefinition = td.get.asInstanceOf[LeafOneToManyTableDefinition]
     val temporaryViewName = Random.alphanumeric.take(10).mkString
     val preProcess = s"""
-       |CREATE VIEW v_musics AS
+       |CREATE VIEW $temporaryViewName AS
        |SELECT
-       |  ${tableDefinition.name}.artist_id,
+       |  ${tableDefinition.name}.${tableDefinition.childColumnForJoin},
        |  CONCAT('[', GROUP_CONCAT(${value.toSql.selectMain} SEPARATOR ','), ']') AS names
        |FROM ${tableDefinition.name}
-       |GROUP BY ${tableDefinition.name}.artist_id
+       |GROUP BY ${tableDefinition.name}.${tableDefinition.childColumnForJoin}
      """.stripMargin
-    val postProcess = "DROP VIEW if exists v_musics"
+    val postProcess = s"DROP VIEW if exists $temporaryViewName"
     SqlFragment(
       value.toSql.preProcess :+ preProcess,
-      s"""v_musics.names""",
+      s"""$temporaryViewName.names""",
       s"""
          |JOIN
-         |  v_musics
+         |  $temporaryViewName
          |ON
-         |  artist.id = v_musics.artist_id
+         |  ${tableDefinition.parentColumnForGroupBy} = $temporaryViewName.${tableDefinition.childColumnForJoin}
          |""".stripMargin.some,
       postProcess +: value.toSql.postProcess
     )
@@ -158,35 +157,6 @@ case class JsonObject(
 }
 
 class Wiring {
-  def forJsonObject(key: String, bluePrint: JsonObject): String = {
-    val tableDefinition = bluePrint.tdo.get.asInstanceOf[LeafTableDefinition]
-    val tail = tableDefinition match {
-      case l: LeafOneToManyTableDefinition => "GROUP BY\n  " + l.parentGroupByColumn
-      case _ => ""
-    }
-    val properties = bluePrint.properties.map { p =>
-      p._2 match {
-        case js: JsonString => s""" '"${p._1}":', ${js.toSql.selectMain}, """
-        case jo: JsonObject => s""" '"${p._1}":[', GROUP_CONCAT(${p._1}.json SEPARATOR ','), ']',"""
-      }
-    }.mkString("")
-    s"""
-       |(
-       |  SELECT
-       |    ${tableDefinition.name}.*,
-       |    CONCAT(
-       |      '{',
-       |      $properties
-       |      '}'
-       |    ) AS json
-       |  FROM
-       |    ${tableDefinition.name}
-       |) AS $key
-       |ON
-       |  ${tableDefinition.joinRule}
-       |$tail
-    """.stripMargin
-  }
 
   val bluePrint = JsonObject(
     RootTableDefinition(
@@ -202,7 +172,7 @@ class Wiring {
       "musics" -> JsonObject(
         LeafOneToManyTableDefinition(
           "music",
-          "artist.id = music.artist_id",
+          "artist_id",
           "artist.id"
         ).some,
         Map[String, JsonValue](
@@ -210,8 +180,8 @@ class Wiring {
           "contents" -> JsonObject(
             LeafOneToManyTableDefinition(
               "content",
-              "music.id = contents.music_id", // ここのjoinRuleが
-              "music.id" // 外のcontentsという名前に引きづられるのいや
+              "music_id",
+              "music.id"
             ).some,
             Map[String, JsonValue](
               "name" -> JsonString("content.name")
@@ -222,8 +192,8 @@ class Wiring {
     )
   )
 
-  val musics = bluePrint.properties("musics").asInstanceOf[JsonObject]
-  println(forJsonObject("contents", musics.properties("contents").asInstanceOf[JsonObject]))
+  //val musics = bluePrint.properties("musics").asInstanceOf[JsonObject]
+  //println(forJsonObject("contents", musics.properties("contents").asInstanceOf[JsonObject]))
 
   //println(forJsonObject(bluePrint.properties("musics").asInstanceOf[JsonObject]))
 }
