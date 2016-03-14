@@ -79,11 +79,12 @@ case class JsonArray(
        |  ${tableDefinition.name}.${tableDefinition.childColumnForJoin},
        |  CONCAT('[', GROUP_CONCAT(${value.toSql.selectMain} SEPARATOR ','), ']') AS names
        |FROM ${tableDefinition.name}
+       |${value.toSql.joinFragment.getOrElse("")}
        |GROUP BY ${tableDefinition.name}.${tableDefinition.childColumnForJoin}
      """.stripMargin
     val postProcess = s"DROP VIEW if exists $temporaryViewName"
     SqlFragment(
-      value.toSql.preProcess :+ (preProcess + value.toSql.joinFragment.getOrElse("")),
+      value.toSql.preProcess :+ preProcess,
       s"""$temporaryViewName.names""",
       s"""
          |JOIN

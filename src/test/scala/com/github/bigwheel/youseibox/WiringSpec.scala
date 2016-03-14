@@ -282,7 +282,21 @@ class WiringSpec extends FunSpec with Matchers {
       List(Map("id" -> 1, "name" -> "水樹奈々",
         "json" -> Json(
           "name" := "水樹奈々",
-          "musics" := Json.array(jString("深愛"), jString("innocent starter"))
+          "musics" := Json.array(
+            Json(
+              "name" := "深愛",
+              "contents" := Json.array(
+                Json("name" := "深愛 - ショートVer."),
+                Json("name" := "深愛 - ロングVer.")
+              )
+            ),
+            Json(
+              "name" := "innocent starter",
+              "contents" := Json.array(
+                Json("name" := "innocent starter(inst)")
+              )
+            )
+          )
         )
       ))
     )
