@@ -122,3 +122,28 @@ ON artist.id = v_musics.artist_id
 ;
 
 DROP VIEW v_musics;
+
+
+CREATE VIEW gWRaTEX0un AS
+  SELECT
+    content.music_id,
+    CONCAT('[', GROUP_CONCAT(
+        CONCAT(
+            '{',
+            '"name":', '"', content.name, '"',
+            '}'
+        )
+        SEPARATOR ','), ']') AS names
+  FROM content
+  GROUP BY content.music_id;
+
+
+CREATE VIEW oZh6ZzbuZj
+AS SELECT
+     music.artist_id,
+     CONCAT('[',
+            GROUP_CONCAT(
+                CONCAT( '{', '"name":', '"', music.name, '"',',','"contents":', gWRaTEX0un.names, '}' )
+                SEPARATOR ','),
+            ']') AS names
+FROM music JOIN gWRaTEX0un ON music.id = gWRaTEX0un.music_id GROUP BY music.artist_id;

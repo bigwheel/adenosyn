@@ -258,21 +258,20 @@ class WiringSpec extends FunSpec with Matchers {
               "artist.id"
             ).some,
             youseibox.JsonObject(
-              LeafOneToManyTableDefinition(
-                "music",
-                "artist_id",
-                "artist.id"
-              ).some,
+              None,
               Map[String, JsonValue](
                 "name" -> JsonString("music.name"),
-                "contents" -> youseibox.JsonObject(
+                "contents" -> JsonArray(
                   LeafOneToManyTableDefinition(
                     "content",
                     "music_id",
                     "music.id"
                   ).some,
-                  Map[String, JsonValue](
-                    "name" -> JsonString("content.name")
+                  youseibox.JsonObject(
+                    None,
+                    Map[String, JsonValue](
+                      "name" -> JsonString("content.name")
+                    )
                   )
                 )
               )
@@ -292,7 +291,7 @@ class WiringSpec extends FunSpec with Matchers {
   for (test <- tests) {
     it(test._1) {
       val sqls = test._2.toSql
-      //println(sqls)
+      println(sqls)
       sqls.preProcess.foreach(SQL(_).execute.apply())
       try {
         SQL(sqls.selectMain).map(_.toMap).list.apply() |> asJsonObj should equal(test._3)

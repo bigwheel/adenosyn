@@ -83,7 +83,7 @@ case class JsonArray(
      """.stripMargin
     val postProcess = s"DROP VIEW if exists $temporaryViewName"
     SqlFragment(
-      value.toSql.preProcess :+ preProcess,
+      value.toSql.preProcess :+ (preProcess + value.toSql.joinFragment.getOrElse("")),
       s"""$temporaryViewName.names""",
       s"""
          |JOIN
@@ -143,6 +143,7 @@ case class JsonObject(
         }.mkString("',',")
         val joins = properties.values.flatMap(_.toSql.joinFragment).mkString("\n")
         SqlFragment(
+          properties.values.flatMap(_.toSql.preProcess).toSeq,
           s"""
              |  CONCAT(
              |      '{',
@@ -150,8 +151,9 @@ case class JsonObject(
              |      '}'
              |  )
              |""".stripMargin
-          , joins
-          )
+          , joins.some,
+          properties.values.flatMap(_.toSql.postProcess).toSeq
+        )
     }
   }
 }
