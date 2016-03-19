@@ -1,12 +1,14 @@
 package com.github.bigwheel.youseibox
 
-import com.github.bigwheel.youseibox
+import argonaut.Argonaut._
+import argonaut._
+import com.github.bigwheel.youseibox.json._
+import com.github.bigwheel.youseibox.table._
 import org.scalatest.FunSpec
 import org.scalatest.Matchers
 import scala.sys.process.Process
-import scalaz._, Scalaz._
+import scalaz.Scalaz._
 import scalikejdbc._
-import argonaut._, Argonaut._
 
 class WiringSpec extends FunSpec with Matchers {
   val ipAddress = Process("otto dev address").!!.stripLineEnd
@@ -91,12 +93,12 @@ class WiringSpec extends FunSpec with Matchers {
   val tests = Seq(
     (
       "最も単純なjsonオブジェクトを組み立てられる",
-      youseibox.JsonObject(
-        RootTableDefinition(
+      JsObject(
+        RootTable(
           "artist"
         ).some,
-        Map[String, JsonValue](
-          "name" -> JsonString("artist.name")
+        Map[String, JsValue](
+          "name" -> JsString("artist.name")
         )
       ),
       List(Map("id" -> 1, "name" -> "水樹奈々",
@@ -105,13 +107,13 @@ class WiringSpec extends FunSpec with Matchers {
     ),
     (
       "複数プロパティのjsonオブジェクトを組み立てられる",
-      youseibox.JsonObject(
-        RootTableDefinition(
+      JsObject(
+        RootTable(
           "artist"
         ).some,
-        Map[String, JsonValue](
-          "id" -> JsonInt("artist.id"),
-          "name" -> JsonString("artist.name")
+        Map[String, JsValue](
+          "id" -> JsInt("artist.id"),
+          "name" -> JsString("artist.name")
         )
       ),
       List(Map("id" -> 1, "name" -> "水樹奈々",
@@ -120,17 +122,17 @@ class WiringSpec extends FunSpec with Matchers {
     ),
     (
       "単純チェインのテーブルJOINでjsonオブジェクトを組み立てられる",
-      youseibox.JsonObject(
-        RootTableDefinition(
+      JsObject(
+        RootTable(
           "artist",
-          LeafOneToOneTableDefinition(
+          LeafOneToOneTable(
             "artist_kana",
             "artist.id = artist_kana.artist_id"
           ).some
         ).some,
-        Map[String, JsonValue](
-          "name" -> JsonString("artist.name"),
-          "kana" -> JsonString("artist_kana.kana")
+        Map[String, JsValue](
+          "name" -> JsString("artist.name"),
+          "kana" -> JsString("artist_kana.kana")
         )
       ),
       List(Map("id" -> 1, "name" -> "水樹奈々",
@@ -139,19 +141,19 @@ class WiringSpec extends FunSpec with Matchers {
     ),
     (
       "jsonオブジェクトがネストしていても組み立てられる",
-      youseibox.JsonObject(
-        RootTableDefinition(
+      JsObject(
+        RootTable(
           "artist"
         ).some,
-        Map[String, JsonValue](
-          "name" -> JsonString("artist.name"),
-          "musics" -> JsonArray(
-            LeafOneToManyTableDefinition(
+        Map[String, JsValue](
+          "name" -> JsString("artist.name"),
+          "musics" -> JsArray(
+            LeafOneToManyTable(
               "music",
               "artist_id",
               "artist.id"
             ).some,
-            JsonString("music.name")
+            JsString("music.name")
           )
         )
       ),
@@ -164,24 +166,24 @@ class WiringSpec extends FunSpec with Matchers {
     ),
     (
       "ネストと直列JOINが両方あっても組み立てられる",
-      youseibox.JsonObject(
-        RootTableDefinition(
+      JsObject(
+        RootTable(
           "artist",
-          LeafOneToOneTableDefinition(
+          LeafOneToOneTable(
             "artist_kana",
             "artist.id = artist_kana.artist_id"
           ).some
         ).some,
-        Map[String, JsonValue](
-          "name" -> JsonString("artist.name"),
-          "kana" -> JsonString("artist_kana.kana"),
-          "musics" -> JsonArray(
-            LeafOneToManyTableDefinition(
+        Map[String, JsValue](
+          "name" -> JsString("artist.name"),
+          "kana" -> JsString("artist_kana.kana"),
+          "musics" -> JsArray(
+            LeafOneToManyTable(
               "music",
               "artist_id",
               "artist.id"
             ).some,
-            JsonString("music.name")
+            JsString("music.name")
           )
         )
       ),
@@ -195,19 +197,19 @@ class WiringSpec extends FunSpec with Matchers {
     ),
     (
       "ネスト内からネスト外のカラムを参照できる",
-      youseibox.JsonObject(
-        RootTableDefinition(
+      JsObject(
+        RootTable(
           "artist"
         ).some,
-        Map[String, JsonValue](
-          "name" -> JsonString("artist.name"),
-          "musics" -> JsonArray(
-            LeafOneToManyTableDefinition(
+        Map[String, JsValue](
+          "name" -> JsString("artist.name"),
+          "musics" -> JsArray(
+            LeafOneToManyTable(
               "music",
               "artist_id",
               "artist.id"
             ).some,
-            JsonInt("artist.id")
+            JsInt("artist.id")
           )
         )
       ),
@@ -220,19 +222,19 @@ class WiringSpec extends FunSpec with Matchers {
     ),
     (
       "jsonオブジェクトが配列の中だとしても組み立てられる",
-      youseibox.JsonObject(
-        RootTableDefinition(
+      JsObject(
+        RootTable(
           "artist"
         ).some,
-        Map[String, JsonValue](
-          "name" -> JsonString("artist.name"),
-          "musics" -> JsonArray(
-            LeafOneToManyTableDefinition(
+        Map[String, JsValue](
+          "name" -> JsString("artist.name"),
+          "musics" -> JsArray(
+            LeafOneToManyTable(
               "music",
               "artist_id",
               "artist.id"
             ).some,
-            youseibox.JsonObject(None, Map[String, JsonValue]("name" -> JsonString("music.name")))
+            JsObject(None, Map[String, JsValue]("name" -> JsString("music.name")))
           )
         )
       ),
@@ -245,32 +247,32 @@ class WiringSpec extends FunSpec with Matchers {
     ),
     (
       "ネストが二重でも組み立てられる",
-      youseibox.JsonObject(
-        RootTableDefinition(
+      JsObject(
+        RootTable(
           "artist"
         ).some,
-        Map[String, JsonValue](
-          "name" -> JsonString("artist.name"),
-          "musics" -> JsonArray(
-            LeafOneToManyTableDefinition(
+        Map[String, JsValue](
+          "name" -> JsString("artist.name"),
+          "musics" -> JsArray(
+            LeafOneToManyTable(
               "music",
               "artist_id",
               "artist.id"
             ).some,
-            youseibox.JsonObject(
+            JsObject(
               None,
-              Map[String, JsonValue](
-                "name" -> JsonString("music.name"),
-                "contents" -> JsonArray(
-                  LeafOneToManyTableDefinition(
+              Map[String, JsValue](
+                "name" -> JsString("music.name"),
+                "contents" -> JsArray(
+                  LeafOneToManyTable(
                     "content",
                     "music_id",
                     "music.id"
                   ).some,
-                  youseibox.JsonObject(
+                  JsObject(
                     None,
-                    Map[String, JsonValue](
-                      "name" -> JsonString("content.name")
+                    Map[String, JsValue](
+                      "name" -> JsString("content.name")
                     )
                   )
                 )
