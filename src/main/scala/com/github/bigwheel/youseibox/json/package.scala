@@ -55,60 +55,46 @@ package object json {
     properties: Map[String, JsValue]
   ) extends JsValue {
     def toSql = {
-      tdo match {
+      val jsonObjectColumn = {
+        val ps = properties.map { case (k, v) =>
+          s""" '"$k":', ${v.toSql.selectMain}, """
+        }.mkString("',',\n")
+        s"""
+           |CONCAT(
+           |  '{',
+           |  $ps
+           |  '}'
+           |)
+       """.stripMargin
+      }
+
+      val (selectMain, joinFragment) = tdo match {
         case Some(tableDefinition: RootTable) =>
-          val joinStringForDirectBoundedTables = tableDefinition.chainTable.map { innerTd =>
-            s"""
-               |JOIN
-               |  ${innerTd.name}
-               |ON
-               |  ${innerTd.joinRule}
-               |""".stripMargin
-          }.getOrElse("")
-          // TODO ここscalazの元の概念(モナドかも？)を使えばこんな無様なコードにはならない
           val tableName = tableDefinition.name
-          val p = properties.map { case (k, v) =>
-            s"""'"$k":', ${v.toSql.selectMain},"""
-          }.mkString("',',")
-          val joinStringForChildTables = properties.values.flatMap(_.toSql.joinFragment).mkString("\n")
-          SqlFragment(
-            properties.values.flatMap(_.toSql.preProcess).toSeq,
-            s"""
+          (s"""
                |SELECT
                |  $tableName.*,
-               |  CONCAT(
-               |      '{',
-               |      $p
-               |      '}'
-               |  ) AS json
+               |  $jsonObjectColumn AS json
                |FROM
                |  $tableName
-               |""".stripMargin + joinStringForDirectBoundedTables +
-              joinStringForChildTables,
-            Some(""),
-            properties.values.flatMap(_.toSql.postProcess).toSeq
-          )
+               |""".stripMargin +
+              tableDefinition.chainTables.map(_.joinString).mkString("\n") +
+              properties.values.flatMap(_.toSql.joinFragment).mkString("\n"),
+            None)
         case Some(_) =>
           throw new IllegalStateException("")
         case None =>
-          // 上と重複コードあり。気を見て統合する
-          val p = properties.map { case (k, v) =>
-            s"""'"$k":', ${v.toSql.selectMain},"""
-          }.mkString("',',")
-          val joins = properties.values.flatMap(_.toSql.joinFragment).mkString("\n")
-          SqlFragment(
-            properties.values.flatMap(_.toSql.preProcess).toSeq,
-            s"""
-               |  CONCAT(
-               |      '{',
-               |      $p
-               |      '}'
-               |  )
-               |""".stripMargin
-            , joins.some,
-            properties.values.flatMap(_.toSql.postProcess).toSeq
-          )
+          // TODO ここscalazの元の概念(モナドかも？)を使えばこんな無様なコードにはならない
+          (jsonObjectColumn, properties.values.flatMap(_.toSql.joinFragment).mkString("\n").some)
       }
+
+      SqlFragment(
+        properties.values.flatMap(_.toSql.preProcess).toSeq,
+        selectMain,
+        joinFragment,
+        properties.values.flatMap(_.toSql.postProcess).toSeq
+      )
+
     }
   }
 
