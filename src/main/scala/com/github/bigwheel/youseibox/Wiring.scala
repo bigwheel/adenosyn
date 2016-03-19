@@ -3,10 +3,6 @@ package com.github.bigwheel.youseibox
 import scala.util.Random
 import scalaz.Scalaz._
 
-sealed abstract class Relation
-object OneToOne extends Relation
-object OneToMany extends Relation
-
 trait TableDefinition {
   val name: String
   val chain: Option[LeafOneToOneTableDefinition]
@@ -17,26 +13,18 @@ case class RootTableDefinition(
   val chain: Option[LeafOneToOneTableDefinition] = None
 ) extends TableDefinition
 
-trait LeafTableDefinition extends TableDefinition {
-  val relation: Relation
-}
-
 case class LeafOneToOneTableDefinition(
   val name: String,
   val joinRule: String,
   val chain: Option[LeafOneToOneTableDefinition] = None
-) extends LeafTableDefinition {
-  val relation = OneToOne
-}
+) extends TableDefinition
 
 case class LeafOneToManyTableDefinition(
   val name: String,
   val childColumnForJoin: String,
   val parentColumnForGroupBy: String,
   val chain: Option[LeafOneToOneTableDefinition] = None
-) extends LeafTableDefinition {
-  val relation = OneToMany
-}
+) extends TableDefinition
 
 case class SqlFragment(
   preProcess: Seq[String],
@@ -103,8 +91,6 @@ case class JsonObject(
 ) extends JsonValue {
   def toSql = {
     tdo match {
-      case Some(tableDefinition: LeafTableDefinition) =>
-        throw new IllegalStateException("")
       case Some(tableDefinition: RootTableDefinition) =>
         val joinStringForDirectBoundedTables = tableDefinition.chain.map { innerTd =>
           s"""
@@ -137,6 +123,8 @@ case class JsonObject(
           Some(""),
           properties.values.flatMap(_.toSql.postProcess).toSeq
         )
+      case Some(_) =>
+        throw new IllegalStateException("")
       case None =>
         // 上と重複コードあり。気を見て統合する
         val p = properties.map { case (k, v) =>
