@@ -4,25 +4,25 @@ package object table {
 
   trait Table {
     val name: String
-    val chainTable: Option[LeafOneToOneTable]
+    val chainTable: Option[_1to1Table]
   }
 
   case class RootTable(
     val name: String,
-    val chainTable: Option[LeafOneToOneTable] = None
+    val chainTable: Option[_1to1Table] = None
   ) extends Table
 
-  case class LeafOneToOneTable(
+  case class _1to1Table(
     val name: String,
     val joinRule: String,
-    val chainTable: Option[LeafOneToOneTable] = None
+    val chainTable: Option[_1to1Table] = None
   ) extends Table
 
-  case class LeafOneToManyTable(
+  case class _1toNTable(
     val name: String,
-    val childColumnForJoin: String,
-    val parentColumnForGroupBy: String,
-    val chainTable: Option[LeafOneToOneTable] = None
+    val joinColumnName: String,
+    val parentColumnName: String,
+    val chainTable: Option[_1to1Table] = None
   ) extends Table
 
 }

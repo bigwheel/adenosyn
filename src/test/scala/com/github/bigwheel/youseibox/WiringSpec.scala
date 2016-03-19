@@ -125,7 +125,7 @@ class WiringSpec extends FunSpec with Matchers {
       JsObject(
         RootTable(
           "artist",
-          LeafOneToOneTable(
+          _1to1Table(
             "artist_kana",
             "artist.id = artist_kana.artist_id"
           ).some
@@ -148,7 +148,7 @@ class WiringSpec extends FunSpec with Matchers {
         Map[String, JsValue](
           "name" -> JsString("artist.name"),
           "musics" -> JsArray(
-            LeafOneToManyTable(
+            _1toNTable(
               "music",
               "artist_id",
               "artist.id"
@@ -169,7 +169,7 @@ class WiringSpec extends FunSpec with Matchers {
       JsObject(
         RootTable(
           "artist",
-          LeafOneToOneTable(
+          _1to1Table(
             "artist_kana",
             "artist.id = artist_kana.artist_id"
           ).some
@@ -178,7 +178,7 @@ class WiringSpec extends FunSpec with Matchers {
           "name" -> JsString("artist.name"),
           "kana" -> JsString("artist_kana.kana"),
           "musics" -> JsArray(
-            LeafOneToManyTable(
+            _1toNTable(
               "music",
               "artist_id",
               "artist.id"
@@ -204,7 +204,7 @@ class WiringSpec extends FunSpec with Matchers {
         Map[String, JsValue](
           "name" -> JsString("artist.name"),
           "musics" -> JsArray(
-            LeafOneToManyTable(
+            _1toNTable(
               "music",
               "artist_id",
               "artist.id"
@@ -229,7 +229,7 @@ class WiringSpec extends FunSpec with Matchers {
         Map[String, JsValue](
           "name" -> JsString("artist.name"),
           "musics" -> JsArray(
-            LeafOneToManyTable(
+            _1toNTable(
               "music",
               "artist_id",
               "artist.id"
@@ -254,7 +254,7 @@ class WiringSpec extends FunSpec with Matchers {
         Map[String, JsValue](
           "name" -> JsString("artist.name"),
           "musics" -> JsArray(
-            LeafOneToManyTable(
+            _1toNTable(
               "music",
               "artist_id",
               "artist.id"
@@ -264,7 +264,7 @@ class WiringSpec extends FunSpec with Matchers {
               Map[String, JsValue](
                 "name" -> JsString("music.name"),
                 "contents" -> JsArray(
-                  LeafOneToManyTable(
+                  _1toNTable(
                     "content",
                     "music_id",
                     "music.id"

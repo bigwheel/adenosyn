@@ -1,6 +1,6 @@
 package com.github.bigwheel.youseibox
 
-import com.github.bigwheel.youseibox.table.Table
+import com.github.bigwheel.youseibox.table._
 import scala.util.Random
 import scalaz.Scalaz._
 
@@ -24,16 +24,16 @@ package object json {
   ) extends JsValue {
     lazy val toSql = {
       // TODO: Noneの場合のコードも書け
-      val tableDefinition = td.get.asInstanceOf[LeafOneToManyTable]
+      val tableDefinition = td.get.asInstanceOf[_1toNTable]
       val temporaryViewName = Random.alphanumeric.take(10).mkString
       val preProcess = s"""
-                          |CREATE VIEW $temporaryViewName AS
-                          |SELECT
-                          |  ${tableDefinition.name}.${tableDefinition.childColumnForJoin},
-                          |  CONCAT('[', GROUP_CONCAT(${value.toSql.selectMain} SEPARATOR ','), ']') AS names
-                          |FROM ${tableDefinition.name}
-                          |${value.toSql.joinFragment.getOrElse("")}
-                          |GROUP BY ${tableDefinition.name}.${tableDefinition.childColumnForJoin}
+        |CREATE VIEW $temporaryViewName AS
+        |SELECT
+        |  ${tableDefinition.name}.${tableDefinition.joinColumnName},
+        |  CONCAT('[', GROUP_CONCAT(${value.toSql.selectMain} SEPARATOR ','), ']') AS names
+        |FROM ${tableDefinition.name}
+        |${value.toSql.joinFragment.getOrElse("")}
+        |GROUP BY ${tableDefinition.name}.${tableDefinition.joinColumnName}
      """.stripMargin
       val postProcess = s"DROP VIEW if exists $temporaryViewName"
       SqlFragment(
@@ -43,7 +43,7 @@ package object json {
            |JOIN
            |  $temporaryViewName
            |ON
-           |  ${tableDefinition.parentColumnForGroupBy} = $temporaryViewName.${tableDefinition.childColumnForJoin}
+           |  ${tableDefinition.parentColumnName} = $temporaryViewName.${tableDefinition.joinColumnName}
            |""".stripMargin.some,
         postProcess +: value.toSql.postProcess
       )
