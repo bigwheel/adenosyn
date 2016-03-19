@@ -101,9 +101,7 @@ class WiringSpec extends FunSpec with Matchers {
           "name" -> JsString("artist.name")
         )
       ),
-      List(Map("id" -> 1, "name" -> "水樹奈々",
-        "json" -> Json("name" := "水樹奈々")
-      ))
+      List(Map("json" -> Json("name" := "水樹奈々")))
     ),
     (
       "複数プロパティのjsonオブジェクトを組み立てられる",
@@ -116,9 +114,7 @@ class WiringSpec extends FunSpec with Matchers {
           "name" -> JsString("artist.name")
         )
       ),
-      List(Map("id" -> 1, "name" -> "水樹奈々",
-        "json" -> Json("id" := 1, "name" := "水樹奈々")
-      ))
+      List(Map("json" -> Json("id" := 1, "name" := "水樹奈々")))
     ),
     (
       "単純チェインのテーブルJOINでjsonオブジェクトを組み立てられる",
@@ -135,9 +131,7 @@ class WiringSpec extends FunSpec with Matchers {
           "kana" -> JsString("artist_kana.kana")
         )
       ),
-      List(Map("id" -> 1, "name" -> "水樹奈々",
-        "json" -> Json("name" := "水樹奈々", "kana" := "みずきなな")
-      ))
+      List(Map("json" -> Json("name" := "水樹奈々", "kana" := "みずきなな")))
     ),
     (
       "jsonオブジェクトがネストしていても組み立てられる",
@@ -157,7 +151,7 @@ class WiringSpec extends FunSpec with Matchers {
           )
         )
       ),
-      List(Map("id" -> 1, "name" -> "水樹奈々",
+      List(Map(
         "json" -> Json(
           "name" := "水樹奈々",
           "musics" := Json.array(jString("深愛"), jString("innocent starter"))
@@ -187,7 +181,7 @@ class WiringSpec extends FunSpec with Matchers {
           )
         )
       ),
-      List(Map("id" -> 1, "name" -> "水樹奈々",
+      List(Map(
         "json" -> Json(
           "name" := "水樹奈々",
           "kana" := "みずきなな",
@@ -213,7 +207,7 @@ class WiringSpec extends FunSpec with Matchers {
           )
         )
       ),
-      List(Map("id" -> 1, "name" -> "水樹奈々",
+      List(Map(
         "json" -> Json(
           "name" := "水樹奈々",
           "musics" := Json.array(jNumber(1), jNumber(1))
@@ -238,7 +232,7 @@ class WiringSpec extends FunSpec with Matchers {
           )
         )
       ),
-      List(Map("id" -> 1, "name" -> "水樹奈々",
+      List(Map(
         "json" -> Json(
           "name" := "水樹奈々",
           "musics" := Json.array(Json("name" := "深愛"), Json("name" := "innocent starter"))
@@ -281,7 +275,7 @@ class WiringSpec extends FunSpec with Matchers {
           )
         )
       ),
-      List(Map("id" -> 1, "name" -> "水樹奈々",
+      List(Map(
         "json" -> Json(
           "name" := "水樹奈々",
           "musics" := Json.array(

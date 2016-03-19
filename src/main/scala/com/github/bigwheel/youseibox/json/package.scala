@@ -70,13 +70,11 @@ package object json {
 
       val (selectMain, joinFragment) = tdo match {
         case Some(tableDefinition: RootTable) =>
-          val tableName = tableDefinition.name
           (s"""
                |SELECT
-               |  $tableName.*,
                |  $jsonObjectColumn AS json
                |FROM
-               |  $tableName
+               |  ${tableDefinition.name}
                |""".stripMargin +
               tableDefinition.chainTables.map(_.joinString).mkString("\n") +
               properties.values.flatMap(_.toSql.joinFragment).mkString("\n"),
