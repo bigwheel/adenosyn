@@ -59,31 +59,21 @@ package object json {
         val ps = properties.map { case (k, v) =>
           s""" '"$k":', ${v.toSql.selectMain}, """
         }.mkString("',',\n")
-        s"""
-           |CONCAT(
-           |  '{',
-           |  $ps
-           |  '}'
-           |)
-       """.stripMargin
+        s"CONCAT( '{', $ps '}' ) "
       }
+      val joinFragments = properties.values.flatMap(_.toSql.joinFragment).mkString("\n")
 
       val (selectMain, joinFragment) = tdo match {
         case Some(tableDefinition: RootTable) =>
-          (s"""
-               |SELECT
-               |  $jsonObjectColumn AS json
-               |FROM
-               |  ${tableDefinition.name}
-               |""".stripMargin +
-              tableDefinition.chainTables.map(_.joinString).mkString("\n") +
-              properties.values.flatMap(_.toSql.joinFragment).mkString("\n"),
-            None)
+          val sm = s"SELECT $jsonObjectColumn AS json FROM ${tableDefinition.name} " +
+            tableDefinition.chainTables.map(_.joinString).mkString("\n") +
+            joinFragments
+          (sm, None)
         case Some(_) =>
           throw new IllegalStateException("")
         case None =>
           // TODO ここscalazの元の概念(モナドかも？)を使えばこんな無様なコードにはならない
-          (jsonObjectColumn, properties.values.flatMap(_.toSql.joinFragment).mkString("\n").some)
+          (jsonObjectColumn, joinFragments.some)
       }
 
       SqlFragment(
