@@ -5,7 +5,7 @@ package object table {
   trait Table {
     val name: String
     protected[this] val chainTable: Option[_1to1Table]
-    def chainTables: Seq[_1to1Table] = chainTable.map{ct => ct +: ct.chainTables}.getOrElse(Nil)
+    def getJoinStrings: String = chainTable.map(_.joinStrings).getOrElse("")
   }
 
   object RootTable {
@@ -27,7 +27,7 @@ package object table {
     joinRule: String,
     protected[this] val chainTable: Option[_1to1Table] = None
   ) extends Table {
-    val joinString = s"JOIN $name ON $joinRule"
+    val joinStrings: String = s"JOIN $name ON $joinRule\n" + chainTable.map(_.joinStrings).getOrElse("")
   }
 
   object _1toNTable {

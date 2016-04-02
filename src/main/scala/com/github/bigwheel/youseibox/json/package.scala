@@ -10,43 +10,47 @@ package object json {
     def toSql: SqlFragment
   }
 
-  case class JsString(val columnName: String) extends JsValue {
-    def toSql = SqlFragment(s"""'"', $columnName, '"'""")
+  case class JsString(val tableName: String, val columnName: String) extends JsValue {
+    def toSql = SqlFragment(s""" '"', $tableName.$columnName, '"' """)
   }
 
-  case class JsInt(val columnName: String) extends JsValue {
-    def toSql = SqlFragment(columnName)
+  case class JsInt(val tableName: String, val columnName: String) extends JsValue {
+    def toSql = SqlFragment(tableName + "." + columnName)
   }
 
   case class JsArray(
-    td: Option[Table],
+    td: Option[_1toNTable],
     value: JsValue
   ) extends JsValue {
     lazy val toSql = {
-      // TODO: Noneの場合のコードも書け
-      val tableDefinition = td.get.asInstanceOf[_1toNTable]
-      val temporaryViewName = Random.alphanumeric.take(10).mkString
-      val preProcess = s"""
-        |CREATE VIEW $temporaryViewName AS
-        |SELECT
-        |  ${tableDefinition.name}.${tableDefinition.joinColumnName},
-        |  CONCAT('[', GROUP_CONCAT(${value.toSql.selectMain} SEPARATOR ','), ']') AS names
-        |FROM ${tableDefinition.name}
-        |${value.toSql.joinFragment.getOrElse("")}
-        |GROUP BY ${tableDefinition.name}.${tableDefinition.joinColumnName}
-     """.stripMargin
-      val postProcess = s"DROP VIEW if exists $temporaryViewName"
-      SqlFragment(
-        value.toSql.preProcess :+ preProcess,
-        s"""$temporaryViewName.names""",
-        s"""
-           |JOIN
-           |  $temporaryViewName
-           |ON
-           |  ${tableDefinition.parentColumnName} = $temporaryViewName.${tableDefinition.joinColumnName}
-           |""".stripMargin.some,
-        postProcess +: value.toSql.postProcess
-      )
+      td match {
+        case Some(tableDefinition) =>
+          val temporaryViewName = Random.alphanumeric.take(10).mkString
+          val preProcess = s"""
+            |CREATE VIEW $temporaryViewName AS
+            |SELECT
+            |  ${tableDefinition.name}.${tableDefinition.joinColumnName},
+            |  CONCAT('[', GROUP_CONCAT(${value.toSql.selectMain} SEPARATOR ','), ']') AS names
+            |FROM ${tableDefinition.name}
+            |${value.toSql.joinFragment.getOrElse("")}
+            |GROUP BY ${tableDefinition.name}.${tableDefinition.joinColumnName}
+            """.stripMargin
+          val postProcess = s"DROP VIEW if exists $temporaryViewName"
+          SqlFragment(
+            value.toSql.preProcess :+ preProcess,
+            s"$temporaryViewName.names",
+            s"""
+               |JOIN
+               |  $temporaryViewName
+               |ON
+               |  ${tableDefinition.parentColumnName} = $temporaryViewName.${tableDefinition.joinColumnName}
+               |""".stripMargin.some,
+            postProcess +: value.toSql.postProcess
+          )
+        case None =>
+        // TODO: Noneの場合のコードも書け
+          throw new RuntimeException()
+      }
     }
   }
 
@@ -66,8 +70,7 @@ package object json {
       val (selectMain, joinFragment) = tdo match {
         case Some(tableDefinition: RootTable) =>
           val sm = s"SELECT $jsonObjectColumn AS json FROM ${tableDefinition.name} " +
-            tableDefinition.chainTables.map(_.joinString).mkString("\n") +
-            joinFragments
+            tableDefinition.getJoinStrings + joinFragments
           (sm, None)
         case Some(_) =>
           throw new IllegalStateException("")

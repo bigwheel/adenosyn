@@ -98,7 +98,7 @@ class WiringSpec extends FunSpec with Matchers {
           "artist"
         ).some,
         Map[String, JsValue](
-          "name" -> JsString("artist.name")
+          "name" -> JsString("artist", "name")
         )
       ),
       List(Map("json" -> Json("name" := "水樹奈々")))
@@ -110,8 +110,8 @@ class WiringSpec extends FunSpec with Matchers {
           "artist"
         ).some,
         Map[String, JsValue](
-          "id" -> JsInt("artist.id"),
-          "name" -> JsString("artist.name")
+          "id" -> JsInt("artist", "id"),
+          "name" -> JsString("artist", "name")
         )
       ),
       List(Map("json" -> Json("id" := 1, "name" := "水樹奈々")))
@@ -127,8 +127,8 @@ class WiringSpec extends FunSpec with Matchers {
           ).some
         ).some,
         Map[String, JsValue](
-          "name" -> JsString("artist.name"),
-          "kana" -> JsString("artist_kana.kana")
+          "name" -> JsString("artist", "name"),
+          "kana" -> JsString("artist_kana", "kana")
         )
       ),
       List(Map("json" -> Json("name" := "水樹奈々", "kana" := "みずきなな")))
@@ -140,14 +140,14 @@ class WiringSpec extends FunSpec with Matchers {
           "artist"
         ).some,
         Map[String, JsValue](
-          "name" -> JsString("artist.name"),
+          "name" -> JsString("artist", "name"),
           "musics" -> JsArray(
             _1toNTable(
               "music",
               "artist_id",
               "artist.id"
             ).some,
-            JsString("music.name")
+            JsString("music", "name")
           )
         )
       ),
@@ -169,15 +169,15 @@ class WiringSpec extends FunSpec with Matchers {
           ).some
         ).some,
         Map[String, JsValue](
-          "name" -> JsString("artist.name"),
-          "kana" -> JsString("artist_kana.kana"),
+          "name" -> JsString("artist", "name"),
+          "kana" -> JsString("artist_kana", "kana"),
           "musics" -> JsArray(
             _1toNTable(
               "music",
               "artist_id",
               "artist.id"
             ).some,
-            JsString("music.name")
+            JsString("music", "name")
           )
         )
       ),
@@ -196,14 +196,14 @@ class WiringSpec extends FunSpec with Matchers {
           "artist"
         ).some,
         Map[String, JsValue](
-          "name" -> JsString("artist.name"),
+          "name" -> JsString("artist", "name"),
           "musics" -> JsArray(
             _1toNTable(
               "music",
               "artist_id",
               "artist.id"
             ).some,
-            JsInt("artist.id")
+            JsInt("artist", "id")
           )
         )
       ),
@@ -221,14 +221,14 @@ class WiringSpec extends FunSpec with Matchers {
           "artist"
         ).some,
         Map[String, JsValue](
-          "name" -> JsString("artist.name"),
+          "name" -> JsString("artist", "name"),
           "musics" -> JsArray(
             _1toNTable(
               "music",
               "artist_id",
               "artist.id"
             ).some,
-            JsObject(None, Map[String, JsValue]("name" -> JsString("music.name")))
+            JsObject(None, Map[String, JsValue]("name" -> JsString("music", "name")))
           )
         )
       ),
@@ -246,7 +246,7 @@ class WiringSpec extends FunSpec with Matchers {
           "artist"
         ).some,
         Map[String, JsValue](
-          "name" -> JsString("artist.name"),
+          "name" -> JsString("artist", "name"),
           "musics" -> JsArray(
             _1toNTable(
               "music",
@@ -256,7 +256,7 @@ class WiringSpec extends FunSpec with Matchers {
             JsObject(
               None,
               Map[String, JsValue](
-                "name" -> JsString("music.name"),
+                "name" -> JsString("music", "name"),
                 "contents" -> JsArray(
                   _1toNTable(
                     "content",
@@ -266,7 +266,7 @@ class WiringSpec extends FunSpec with Matchers {
                   JsObject(
                     None,
                     Map[String, JsValue](
-                      "name" -> JsString("content.name")
+                      "name" -> JsString("content", "name")
                     )
                   )
                 )
