@@ -83,4 +83,67 @@ class WiringSpec extends FunSpec with Matchers {
     ipAddress should fullyMatch regex """\A\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\Z"""
   }
 
+  def sqlResultToJson(sqlResult: List[Map[String, Any]]): List[Json] = sqlResult.map { row =>
+    row.toSeq.map { a =>
+      val m = "^(.+)_([^_]+)$".r.findFirstMatchIn(a._1).get
+      val key = m.group(1)
+      val rawValues = a._2.asInstanceOf[String]
+      val value = m.group(2) match {
+        case "INT" => jNumber(rawValues.toInt)
+        case "STRING" => jString(rawValues)
+      }
+      key := value
+    } |> Json.apply
+  }
+
+  case class Test(title: String, input: JsValue, expected: List[Json])
+  val tests = Seq[Test](
+    Test(
+      "最も単純なjsonオブジェクトを組み立てられる",
+      JsObject(
+        Table("artist").some,
+        Map[String, JsValue](
+          "name" -> JsString("artist", "name")
+        )
+      ),
+      List(Json("name" := "水樹奈々"))
+    ),
+    Test(
+      "複数プロパティのjsonオブジェクトを組み立てられる",
+      JsObject(
+        Table("artist").some,
+        Map[String, JsValue](
+          "id" -> JsInt("artist", "id"),
+          "name" -> JsString("artist", "name")
+        )
+      ),
+      List(Json("id" := 1, "name" := "水樹奈々"))
+    ),
+    Test(
+      "単純チェインのテーブルJOINでjsonオブジェクトを組み立てられる",
+      JsObject(
+        Table(
+          "artist",
+          ChainedTable(
+            "artist_kana",
+            "id",
+            "artist_id"
+          ).some
+        ).some,
+        Map[String, JsValue](
+          "name" -> JsString("artist", "name"),
+          "kana" -> JsString("artist_kana", "kana")
+        )
+      ),
+      List(Json("name" := "水樹奈々", "kana" := "みずきなな"))
+    )
+  )
+
+  for (test <- tests) {
+    it(test.title) {
+      val sqlResult = SQL(test.input.toSql).map(_.toMap).list.apply()
+      sqlResult |> sqlResultToJson should equal(test.expected)
+    }
+  }
+
 }
