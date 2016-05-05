@@ -1,6 +1,7 @@
 package com.github.bigwheel.youseibox
 
 import com.github.bigwheel.youseibox.table.Table
+import com.github.bigwheel.youseibox.table._1toNTable
 
 package object json {
 
@@ -16,20 +17,23 @@ package object json {
     val toSql = tableName + "." + columnName
   }
 
-  abstract class JsArray extends JsValue
+  case class JsArray(to: Option[_1toNTable], jsValue: JsValue) extends JsValue {
+    override def toSql: String = ""
+  }
 
   case class JsObject(
-    to: Option[Table],
+    tableOption: Option[Table],
     properties: Map[String, JsValue]
   ) extends JsValue {
-    val selectBody = properties.map { a =>
-      val columnName = a._2 match {
-        case _: JsString => a._1 + "_STRING"
-        case _: JsInt => a._1 + "_INT"
+    val selectBody = properties.map { case (name, value) =>
+      val columnName = value match {
+        case _: JsString => name + "_STRING"
+        case _: JsInt => name + "_INT"
+        case _ => ???
       }
-      s"GROUP_CONCAT(${a._2.toSql})" + " AS " + columnName
+      s"GROUP_CONCAT(${value.toSql})" + " AS " + columnName
     }.mkString(", ")
-    val toSql = s"SELECT $selectBody FROM ${to.get.definition}"
+    val toSql = s"SELECT $selectBody FROM ${tableOption.get.definition}"
   }
 
 }

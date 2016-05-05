@@ -12,4 +12,5 @@ package object table {
 
   case class ChainedTable(name: String, columnOfParentTable: String, columnOfChainedTable: String)
 
+  case class _1toNTable(name: String, columnOfParentTable: String, columnOfChainedTable: String)
 }
