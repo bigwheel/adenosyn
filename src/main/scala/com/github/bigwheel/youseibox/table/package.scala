@@ -16,21 +16,32 @@ package object table {
   case class Dot[D, L](value: D, lines: Line[L, D]*)
   case class Line[L, D](value: L, child: Dot[D, L])
 
-  case class Table(name: String, columnName: String*)
+  case class Table(name: String, columnNames: String*)
   case class JoinDefinition(
     columnNameOfParentTable: String,
-    //_1toNRelation: Boolean,
+    _1toNRelation: Boolean,
     columnNameOfChildTable: String)
 
   def toSql(tableStructure: Dot[Table, JoinDefinition]): String = {
-    def lineToSql(parentTable: Table, line: Line[JoinDefinition, Table]): String = {
-      s"JOIN ${line.child.value.name} " +
-        s"ON ${parentTable.name}.${line.value.columnNameOfParentTable} " +
-        s"= ${line.child.value.name}.${line.value.columnNameOfChildTable}"
+    val parentTable = tableStructure.value
+    val parentTableColumns = parentTable.columnNames.map(parentTable.name + "." + _)
+    val line = tableStructure.lines.head
+    val childTable = line.child.value
+    val childTableColumns = {
+      val base = childTable.columnNames./* filter(_ != line.value.columnNameOfChildTable).*/
+        map(childTable.name + "." + _)
+      if (line.value._1toNRelation)
+        base.map("GROUP_CONCAT(" + _ + ")")
+      else
+        base
     }
-    def dotToSql(dot: Dot[Table, JoinDefinition]): String =
-      (dot.value.name +: dot.lines.map(lineToSql(dot.value, _))).map(_.trim).mkString(" ")
+    val columnNames = parentTableColumns ++ childTableColumns
 
-    "SELECT * FROM " + dotToSql(tableStructure)
+    val parentSide = parentTable.name + "." + line.value.columnNameOfParentTable
+    val childSide = childTable.name + "." + line.value.columnNameOfChildTable
+
+    val postfix = if (line.value._1toNRelation) s" GROUP BY $parentSide" else ""
+    "SELECT " + columnNames.mkString(", ") + s" FROM ${parentTable.name} JOIN ${childTable.name} " +
+    s"ON $parentSide = $childSide$postfix"
   }
 }

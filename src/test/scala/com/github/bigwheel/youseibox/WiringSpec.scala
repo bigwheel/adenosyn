@@ -97,31 +97,36 @@ class WiringSpec extends FunSpec with Matchers {
   val artistTable = Table("artist", "id", "name")
   val artistKanaTable = Table("artist_kana", "artist_id", "kana")
   val musicTable = Table("music", "id", "artist_id", "name")
+  val contentTable = Table("content", "id", "music_id", "name")
 
-  /*it("テーブル構造からSQLにできる") {
+  it("1対1の関係のjOINができる") {
     val tableStructure = Dot[Table, JoinDefinition](
       artistTable,
       Line[JoinDefinition, Table](
-        JoinDefinition("id", "artist_id"),
+        JoinDefinition("id", false, "artist_id"),
         Dot[Table, JoinDefinition](artistKanaTable)
       )
     )
     table.toSql(tableStructure) should
-      equal("SELECT * FROM artist JOIN artist_kana ON artist.id = artist_kana.artist_id")
-  }*/
+      equal("SELECT artist.id, artist.name, artist_kana.artist_id, artist_kana.kana " +
+        "FROM artist JOIN artist_kana ON artist.id = artist_kana.artist_id")
+  }
 
   it("1対Nの関係のjOINができる") {
     val tableStructure = Dot[Table, JoinDefinition](
       artistTable,
       Line[JoinDefinition, Table](
-        JoinDefinition("id", "artist_id"),
+        JoinDefinition("id", true, "artist_id"),
         Dot[Table, JoinDefinition](musicTable)
       )
     )
     table.toSql(tableStructure) should
-      equal("SELECT artist.id, artist.name, GROUP_CONCAT(music.id), GROUP_CONCAT(music.name) " +
+      equal("SELECT artist.id, artist.name, GROUP_CONCAT(music.id), GROUP_CONCAT(music.artist_id), GROUP_CONCAT(music.name) " +
         "FROM artist JOIN music ON artist.id = music.artist_id GROUP BY artist.id")
   }
+
+  // こういう感じ。
+  "SELECT artist.id, artist.name, GROUP_CONCAT(A.music__id) AS music__ids, GROUP_CONCAT(A.music__artist_id) AS music__artist_ids, GROUP_CONCAT(content__ids) AS content__idss FROM artist JOIN (SELECT music.id AS music__id, music.artist_id AS music__artist_id, music.name AS music__name, GROUP_CONCAT(content.id) AS content__ids, GROUP_CONCAT(content.name) AS content__names FROM music JOIN content ON music.id = content.music_id GROUP BY music.id) AS A ON artist.id = A.music__artist_id GROUP BY artist.id"
 
   case class TestCase(title: String, input: JsValue, expected: List[Json])
   val tests = Seq[TestCase](
