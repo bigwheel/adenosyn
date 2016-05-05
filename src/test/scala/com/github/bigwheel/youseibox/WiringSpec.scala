@@ -24,7 +24,8 @@ class WiringSpec extends FunSpec with Matchers {
         "drop table if exists artist",
         "drop table if exists artist_kana",
         "drop table if exists music",
-        "drop table if exists content"
+        "drop table if exists content",
+        "drop table if exists tieup"
       ).foreach(SQL(_).execute.apply())
 
       Seq(
@@ -55,6 +56,14 @@ class WiringSpec extends FunSpec with Matchers {
           name     TEXT NOT NULL,
           INDEX index_music_id(music_id)
         )
+        """,
+        """
+        create table tieup (
+          id       INT  NOT NULL PRIMARY KEY AUTO_INCREMENT,
+          music_id INT  NOT NULL,
+          name     TEXT NOT NULL,
+          INDEX index_music_id(music_id)
+        )
         """
       ).
         foreach(SQL(_).execute.apply())
@@ -66,7 +75,9 @@ class WiringSpec extends FunSpec with Matchers {
         """INSERT INTO music(id, artist_id, name) VALUES (12, 1, "innocent starter")""",
         """INSERT INTO content(id, music_id, name) VALUES (111, 11, "深愛 - ショートVer.")""",
         """INSERT INTO content(id, music_id, name) VALUES (112, 11, "深愛 - ロングVer.")""",
-        """INSERT INTO content(id, music_id, name) VALUES (121, 12, "innocent starter(inst)")"""
+        """INSERT INTO content(id, music_id, name) VALUES (121, 12, "innocent starter(inst)")""",
+        """INSERT INTO tieup(id, music_id, name) VALUES (1101, 11, "White Album 2")""",
+        """INSERT INTO tieup(id, music_id, name) VALUES (1201, 12, "魔法少女リリカルなのは")"""
       ).foreach(SQL(_).execute.apply())
     }
   }
@@ -83,33 +94,107 @@ class WiringSpec extends FunSpec with Matchers {
     ipAddress should fullyMatch regex """\A\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\Z"""
   }
 
-  case class Test(title: String, input: JsValue, expected: List[Json])
-  val tests = Seq[Test](
-    Test(
+  val artistTable = Table("artist", "id", "name")
+  val artistKanaTable = Table("artist_kana", "artist_id", "kana")
+  val musicTable = Table("music", "id", "artist_id", "name")
+
+  /*it("テーブル構造からSQLにできる") {
+    val tableStructure = Dot[Table, JoinDefinition](
+      artistTable,
+      Line[JoinDefinition, Table](
+        JoinDefinition("id", "artist_id"),
+        Dot[Table, JoinDefinition](artistKanaTable)
+      )
+    )
+    table.toSql(tableStructure) should
+      equal("SELECT * FROM artist JOIN artist_kana ON artist.id = artist_kana.artist_id")
+  }*/
+
+  it("1対Nの関係のjOINができる") {
+    val tableStructure = Dot[Table, JoinDefinition](
+      artistTable,
+      Line[JoinDefinition, Table](
+        JoinDefinition("id", "artist_id"),
+        Dot[Table, JoinDefinition](musicTable)
+      )
+    )
+    table.toSql(tableStructure) should
+      equal("SELECT artist.id, artist.name, GROUP_CONCAT(music.id), GROUP_CONCAT(music.name) " +
+        "FROM artist JOIN music ON artist.id = music.artist_id GROUP BY artist.id")
+  }
+
+  case class TestCase(title: String, input: JsValue, expected: List[Json])
+  val tests = Seq[TestCase](
+    TestCase(
       "最も単純なjsonオブジェクトを組み立てられる",
       JsObject(
-        Table("artist").some,
+        OldTable("artist").some,
         Map[String, JsValue](
           "name" -> JsString("artist", "name")
         )
       ),
       List(Json("name" := "水樹奈々"))
-    )
+    )/*,
+    Test(
+      "複数プロパティのjsonオブジェクトを組み立てられる",
+      JsObject(
+        Table("artist").some,
+        Map[String, JsValue](
+          "id" -> JsInt("artist", "id"),
+          "name" -> JsString("artist", "name")
+        )
+      ),
+      List(Json("id" := 1, "name" := "水樹奈々"))
+    ),
+    Test(
+      "単純チェインのテーブルJOINでjsonオブジェクトを組み立てられる",
+      JsObject(
+        Table(
+          "artist",
+          ChainedTable(
+            "artist_kana",
+            "id",
+            "artist_id"
+          ).some
+        ).some,
+        Map[String, JsValue](
+          "name" -> JsString("artist", "name"),
+          "kana" -> JsString("artist_kana", "kana")
+        )
+      ),
+      List(Json("name" := "水樹奈々", "kana" := "みずきなな"))
+    ),
+    Test(
+      "単純にjsonオブジェクトがネストしていても組み立てられる",
+      JsObject(
+        Table(
+          "artist"
+        ).some,
+        Map[String, JsValue](
+          "name" -> JsString("artist", "name"),
+          "nest" -> JsObject(
+            None,
+            Map[String, JsValue](
+              "name" -> JsString("artist", "name")
+            )
+          )
+        )
+      ),
+      List(Json(
+        "name" := "水樹奈々",
+        "musics" := Json.array(jString("深愛"), jString("innocent starter"))
+      ))
+    )*/
   )
 
   def sqlResultToJson(sqlResult: List[Map[String, Any]]): List[Json] = sqlResult.map { row =>
-    row.toSeq.map { case (columnName, joinedValues) =>
-      val columnRegex = "^(.+)_([^_]+)$".r
-      columnName match {
-        case columnRegex(key, vvv) =>
-          val rawValues = joinedValues.asInstanceOf[String]
-          val value = vvv match {
-            case "INT" => jNumber(rawValues.toInt)
-            case "STRING" => jString(rawValues)
-          }
-          key := value
-        case _ => ???
+    val columnRegex = "^(.+)_([^_]+)$".r
+    row.toSeq.map { case (columnRegex(trueColumnName, typeAnnotation), joinedValues: String) =>
+      val value = typeAnnotation match {
+        case "INT" => jNumber(joinedValues.toInt)
+        case "STRING" => jString(joinedValues)
       }
+      trueColumnName := value
     } |> Json.apply
   }
 
