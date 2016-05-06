@@ -179,14 +179,14 @@ class WiringSpec extends FunSpec with Matchers {
         stripMargin.split("\n").map(_.trim).mkString(" "))
   }
 
-  case class TestCase(title: String, input: JsValue, expected: List[Json])
+  case class TestCase(title: String, input: OldJsValue, expected: List[Json])
   val tests = Seq[TestCase](
     TestCase(
       "最も単純なjsonオブジェクトを組み立てられる",
-      JsObject(
+      OldJsObject(
         OldTable("artist").some,
-        Map[String, JsValue](
-          "name" -> JsString("artist", "name")
+        Map[String, OldJsValue](
+          "name" -> OldJsString("artist", "name")
         )
       ),
       List(Json("name" := "水樹奈々"))

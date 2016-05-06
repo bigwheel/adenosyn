@@ -5,38 +5,38 @@ import com.github.bigwheel.youseibox.table._1toNTable
 
 package object json {
 
-  trait JsValue {
+  trait OldJsValue {
     def tableStructure: String
     def toSql: String
   }
 
-  case class JsString(tableName: String, columnName: String) extends JsValue {
+  case class OldJsString(tableName: String, columnName: String) extends OldJsValue {
     def tableStructure = ""
     val toSql = tableName + "." + columnName
   }
 
-  case class JsInt(tableName: String, columnName: String) extends JsValue {
+  case class OldJsInt(tableName: String, columnName: String) extends OldJsValue {
     def tableStructure = ""
     val toSql = tableName + "." + columnName
   }
 
-  case class JsArray(to: Option[_1toNTable], jsValue: JsValue) extends JsValue {
+  case class OldJsArray(to: Option[_1toNTable], jsValue: OldJsValue) extends OldJsValue {
     def tableStructure = ???
     override def toSql: String = ""
   }
 
-  case class JsObject(
+  case class OldJsObject(
     tableOption: Option[OldTable],
-    properties: Map[String, JsValue]
-  ) extends JsValue {
+    properties: Map[String, OldJsValue]
+  ) extends OldJsValue {
     def tableStructure = ???
 
     val toSql = {
       val selectBody = properties.map { case (name, value) =>
         val columnName = value match {
-          case _: JsString => name + "_STRING"
-          case _: JsInt => name + "_INT"
-          case _: JsObject =>
+          case _: OldJsString => name + "_STRING"
+          case _: OldJsInt => name + "_INT"
+          case _: OldJsObject =>
           case _ => ???
         }
         s"GROUP_CONCAT(${value.toSql})" + " AS " + columnName
