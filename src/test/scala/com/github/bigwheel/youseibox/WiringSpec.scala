@@ -108,9 +108,14 @@ class WiringSpec extends FunSpec with Matchers {
       )
     )
     table.toSql(tableStructure)._1 should
-      equal("SELECT artist.id AS artist__id, artist.name AS artist__name, " +
-        "artist_kana.artist_id AS artist_kana__artist_id, artist_kana.kana AS artist_kana__kana " +
-        "FROM artist JOIN artist_kana ON artist.id = artist_kana.artist_id")
+      equal(
+        """SELECT
+          | artist.id AS artist__id,
+          | artist.name AS artist__name,
+          | artist_kana.artist_id AS artist_kana__artist_id,
+          | artist_kana.kana AS artist_kana__kana
+          | FROM artist JOIN artist_kana
+          | ON artist.id = artist_kana.artist_id""".stripMargin.split("\n").map(_.trim).mkString(" "))
   }
 
   it("1対Nの関係のJOINができる") {
@@ -122,10 +127,16 @@ class WiringSpec extends FunSpec with Matchers {
       )
     )
     table.toSql(tableStructure)._1 should
-      equal("SELECT artist.id AS artist__id, artist.name AS artist__name, " +
-        "GROUP_CONCAT(music.id) AS music__ids, GROUP_CONCAT(music.artist_id) AS music__artist_ids, " +
-        "GROUP_CONCAT(music.name) AS music__names " +
-        "FROM artist JOIN music ON artist.id = music.artist_id GROUP BY artist.id")
+      equal(
+        """SELECT
+          | artist.id AS artist__id,
+          | artist.name AS artist__name,
+          | GROUP_CONCAT(music.id) AS music__ids,
+          | GROUP_CONCAT(music.artist_id) AS music__artist_ids,
+          | GROUP_CONCAT(music.name) AS music__names
+          | FROM artist JOIN music
+          | ON artist.id = music.artist_id
+          | GROUP BY artist.id""".stripMargin.split("\n").map(_.trim).mkString(" "))
   }
 
   it("1対Nの関係をネストしてもJOINができる") {
@@ -148,7 +159,10 @@ class WiringSpec extends FunSpec with Matchers {
               | artist.name AS artist__name,
               | GROUP_CONCAT(A.music__id) AS music__ids,
               | GROUP_CONCAT(A.music__artist_id) AS music__artist_ids,
-              | GROUP_CONCAT(content__ids) AS content__idss
+              | GROUP_CONCAT(A.music__name) AS music__names,
+              | GROUP_CONCAT(A.content__ids) AS content__idss,
+              | GROUP_CONCAT(A.content__music_ids) AS content__music_idss,
+              | GROUP_CONCAT(A.content__names) AS content__namess
               | FROM artist JOIN
               | (
               |   SELECT
