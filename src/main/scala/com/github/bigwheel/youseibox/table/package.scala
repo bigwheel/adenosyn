@@ -24,16 +24,19 @@ package object table {
 
   def toSql(tableStructure: Dot[Table, JoinDefinition]): String = {
     val parentTable = tableStructure.value
-    val parentTableColumns = parentTable.columnNames.map(parentTable.name + "." + _)
+    val parentTableColumns = parentTable.columnNames.map { columnName =>
+      s"${parentTable.name}.$columnName AS ${parentTable.name}__$columnName"
+    }
     val line = tableStructure.lines.head
     val childTable = line.child.value
     val childTableColumns = {
-      val base = childTable.columnNames./* filter(_ != line.value.columnNameOfChildTable).*/
-        map(childTable.name + "." + _)
-      if (line.value._1toNRelation)
-        base.map("GROUP_CONCAT(" + _ + ")")
-      else
-        base
+      childTable.columnNames.map { columnName =>
+        val base = s"${childTable.name}.$columnName"
+        if (line.value._1toNRelation)
+          s"GROUP_CONCAT($base) AS ${childTable.name}__${columnName}s"
+        else
+          s"$base AS ${childTable.name}__$columnName"
+      }
     }
     val columnNames = parentTableColumns ++ childTableColumns
 

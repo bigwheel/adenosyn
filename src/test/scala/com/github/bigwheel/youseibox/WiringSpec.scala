@@ -99,7 +99,7 @@ class WiringSpec extends FunSpec with Matchers {
   val musicTable = Table("music", "id", "artist_id", "name")
   val contentTable = Table("content", "id", "music_id", "name")
 
-  it("1対1の関係のjOINができる") {
+  it("1対1の関係のJOINができる") {
     val tableStructure = Dot[Table, JoinDefinition](
       artistTable,
       Line[JoinDefinition, Table](
@@ -108,11 +108,12 @@ class WiringSpec extends FunSpec with Matchers {
       )
     )
     table.toSql(tableStructure) should
-      equal("SELECT artist.id, artist.name, artist_kana.artist_id, artist_kana.kana " +
+      equal("SELECT artist.id AS artist__id, artist.name AS artist__name, " +
+        "artist_kana.artist_id AS artist_kana__artist_id, artist_kana.kana AS artist_kana__kana " +
         "FROM artist JOIN artist_kana ON artist.id = artist_kana.artist_id")
   }
 
-  it("1対Nの関係のjOINができる") {
+  it("1対Nの関係のJOINができる") {
     val tableStructure = Dot[Table, JoinDefinition](
       artistTable,
       Line[JoinDefinition, Table](
@@ -121,12 +122,31 @@ class WiringSpec extends FunSpec with Matchers {
       )
     )
     table.toSql(tableStructure) should
-      equal("SELECT artist.id, artist.name, GROUP_CONCAT(music.id), GROUP_CONCAT(music.artist_id), GROUP_CONCAT(music.name) " +
+      equal("SELECT artist.id AS artist__id, artist.name AS artist__name, " +
+        "GROUP_CONCAT(music.id) AS music__ids, GROUP_CONCAT(music.artist_id) AS music__artist_ids, " +
+        "GROUP_CONCAT(music.name) AS music__names " +
         "FROM artist JOIN music ON artist.id = music.artist_id GROUP BY artist.id")
   }
 
   // こういう感じ。
-  "SELECT artist.id, artist.name, GROUP_CONCAT(A.music__id) AS music__ids, GROUP_CONCAT(A.music__artist_id) AS music__artist_ids, GROUP_CONCAT(content__ids) AS content__idss FROM artist JOIN (SELECT music.id AS music__id, music.artist_id AS music__artist_id, music.name AS music__name, GROUP_CONCAT(content.id) AS content__ids, GROUP_CONCAT(content.name) AS content__names FROM music JOIN content ON music.id = content.music_id GROUP BY music.id) AS A ON artist.id = A.music__artist_id GROUP BY artist.id"
+  val nomean = """SELECT
+                | artist.id AS artist__id,
+                | artist.name AS artist__name,
+                | GROUP_CONCAT(A.music__id) AS music__ids,
+                | GROUP_CONCAT(A.music__artist_id) AS music__artist_ids,
+                | GROUP_CONCAT(content__ids) AS content__idss
+                | FROM artist JOIN
+                | (
+                |   SELECT
+                |     music.id AS music__id,
+                |     music.artist_id AS music__artist_id,
+                |     music.name AS music__name,
+                |     GROUP_CONCAT(content.id) AS content__ids,
+                |     GROUP_CONCAT(content.name) AS content__names
+                |   FROM music JOIN content
+                |   ON music.id = content.music_id GROUP BY music.id
+                | ) AS A
+                | ON artist.id = A.music__artist_id GROUP BY artist.id""".stripMargin.split("\n").map(_.trim).mkString(" ")
 
   case class TestCase(title: String, input: JsValue, expected: List[Json])
   val tests = Seq[TestCase](
