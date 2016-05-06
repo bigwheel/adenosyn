@@ -22,29 +22,35 @@ package object table {
     _1toNRelation: Boolean,
     columnNameOfChildTable: String)
 
-  def toSql(tableStructure: Dot[Table, JoinDefinition]): String = {
-    val parentTable = tableStructure.value
+  def toSql(tableStructure: Dot[Table, JoinDefinition]): (String, Seq[String])  = {
+    val dot = if (tableStructure.lines.head.child.lines.nonEmpty)
+      tableStructure.lines.head.child
+    else
+      tableStructure
+
+    val parentTable = dot.value
     val parentTableColumns = parentTable.columnNames.map { columnName =>
-      s"${parentTable.name}.$columnName AS ${parentTable.name}__$columnName"
+      (s"${parentTable.name}.$columnName", s"${parentTable.name}__$columnName")
     }
-    val line = tableStructure.lines.head
+    val line = dot.lines.head
     val childTable = line.child.value
     val childTableColumns = {
       childTable.columnNames.map { columnName =>
         val base = s"${childTable.name}.$columnName"
         if (line.value._1toNRelation)
-          s"GROUP_CONCAT($base) AS ${childTable.name}__${columnName}s"
+          (s"GROUP_CONCAT($base)", s"${childTable.name}__${columnName}s")
         else
-          s"$base AS ${childTable.name}__$columnName"
+          (base, s"${childTable.name}__$columnName")
       }
     }
-    val columnNames = parentTableColumns ++ childTableColumns
+
+    val columnNames = (parentTableColumns ++ childTableColumns).map(c => c._1 + " AS " + c._2)
 
     val parentSide = parentTable.name + "." + line.value.columnNameOfParentTable
     val childSide = childTable.name + "." + line.value.columnNameOfChildTable
 
     val postfix = if (line.value._1toNRelation) s" GROUP BY $parentSide" else ""
-    "SELECT " + columnNames.mkString(", ") + s" FROM ${parentTable.name} JOIN ${childTable.name} " +
-    s"ON $parentSide = $childSide$postfix"
+    ("SELECT " + columnNames.mkString(", ") + s" FROM ${parentTable.name} JOIN ${childTable.name} " +
+    s"ON $parentSide = $childSide$postfix", (parentTableColumns ++ childTableColumns).map(_._2))
   }
 }
