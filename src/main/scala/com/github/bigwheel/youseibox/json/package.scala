@@ -1,9 +1,17 @@
 package com.github.bigwheel.youseibox
 
 import com.github.bigwheel.youseibox.table.OldTable
+import com.github.bigwheel.youseibox.table.Table
 import com.github.bigwheel.youseibox.table._1toNTable
 
 package object json {
+
+  trait JsValue
+
+  case class JsObject(
+    tableOption: Option[Table],
+    properties: Map[String, OldJsValue]
+  ) extends JsValue
 
   trait OldJsValue {
     def tableStructure: String

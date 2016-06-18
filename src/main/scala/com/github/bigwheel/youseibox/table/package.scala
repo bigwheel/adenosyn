@@ -22,9 +22,22 @@ package object table {
     _1toNRelation: Boolean,
     columnNameOfChildTable: String)
 
-  def toSql(tableStructure: Dot[Table, JoinDefinition]): (String, Seq[String])  = {
-    if (tableStructure.lines.head.child.lines.nonEmpty) {
-      val (sql, ccns) = toSql(tableStructure.lines.head.child)
+  case class FullColumnInfo(columnExpression: String, nowColumnName: String, originalTableName: String, originalColumnName: String) {
+    val toColumnDefinition = s"$columnExpression AS $nowColumnName"
+  }
+  // 返り値2つ目はカラム名とそのオリジナルのテーブル名・カラム名
+  def toSql(tableStructure: Dot[Table, JoinDefinition]): (String, Seq[FullColumnInfo])  = {
+    if (tableStructure.lines.isEmpty) {
+      val parentTable = tableStructure.value
+      val parentTableColumns = parentTable.columnNames.map { columnName =>
+        FullColumnInfo(s"${parentTable.name}.$columnName", s"${parentTable.name}__$columnName",
+          parentTable.name, columnName)
+      }
+      val columnsDefinition = parentTableColumns.map(_.toColumnDefinition).mkString(", ")
+
+      (s"SELECT $columnsDefinition FROM ${parentTable.name}", parentTableColumns)
+    } else if (tableStructure.lines.head.child.lines.nonEmpty) {
+      val (sql, fullColumnsInfos) = toSql(tableStructure.lines.head.child)
 
       val temporaryTableName = "A"
 
@@ -32,18 +45,19 @@ package object table {
 
       val parentTable = dot.value
       val parentTableColumns = parentTable.columnNames.map { columnName =>
-        (s"${parentTable.name}.$columnName", s"${parentTable.name}__$columnName")
+        FullColumnInfo(s"${parentTable.name}.$columnName", s"${parentTable.name}__$columnName",
+          parentTable.name, columnName)
       }
       val line = dot.lines.head
-      val childTableColumns = ccns.map { columnName =>
-        val base = s"$temporaryTableName.$columnName"
+      val childTableColumns = fullColumnsInfos.map { fci =>
+        val base = s"$temporaryTableName.${fci.nowColumnName}"
         if (line.value._1toNRelation)
-          (s"GROUP_CONCAT($base)", s"${columnName}s")
+          FullColumnInfo(s"GROUP_CONCAT($base)", s"${fci.nowColumnName}s", fci.originalTableName, fci.originalColumnName)
         else
-          (base, columnName)
+          FullColumnInfo(base, fci.nowColumnName, fci.originalTableName, fci.originalColumnName)
       }
 
-      val columnNames = (parentTableColumns ++ childTableColumns).map(c => c._1 + " AS " + c._2)
+      val columnsDefinition = (parentTableColumns ++ childTableColumns).map(_.toColumnDefinition).mkString(", ")
       val nestedTable = "( " + sql + " ) AS " + temporaryTableName
 
       val parentSide = parentTable.name + "." + line.value.columnNameOfParentTable
@@ -51,33 +65,34 @@ package object table {
         line.value.columnNameOfChildTable
 
       val postfix = if (line.value._1toNRelation) s" GROUP BY $parentSide" else ""
-      ("SELECT " + columnNames.mkString(", ") + s" FROM ${parentTable.name} JOIN $nestedTable " +
-        s"ON $parentSide = $childSide$postfix", (parentTableColumns ++ childTableColumns).map(_._2))
+      (s"SELECT $columnsDefinition FROM ${parentTable.name} JOIN $nestedTable " +
+        s"ON $parentSide = $childSide$postfix", parentTableColumns ++ childTableColumns)
     } else {
       val dot = tableStructure
 
       val parentTable = dot.value
       val parentTableColumns = parentTable.columnNames.map { columnName =>
-        (s"${parentTable.name}.$columnName", s"${parentTable.name}__$columnName")
+        FullColumnInfo(s"${parentTable.name}.$columnName", s"${parentTable.name}__$columnName",
+          parentTable.name, columnName)
       }
       val line = dot.lines.head
       val childTable = line.child.value
       val childTableColumns = childTable.columnNames.map { columnName =>
         val base = s"${childTable.name}.$columnName"
         if (line.value._1toNRelation)
-          (s"GROUP_CONCAT($base)", s"${childTable.name}__${columnName}s")
+          FullColumnInfo(s"GROUP_CONCAT($base)", s"${childTable.name}__${columnName}s", childTable.name, columnName)
         else
-          (base, s"${childTable.name}__$columnName")
+          FullColumnInfo(base, s"${childTable.name}__$columnName", childTable.name, columnName)
       }
 
-      val columnNames = (parentTableColumns ++ childTableColumns).map(c => c._1 + " AS " + c._2)
+      val columnsDefinition = (parentTableColumns ++ childTableColumns).map(_.toColumnDefinition).mkString(", ")
 
       val parentSide = parentTable.name + "." + line.value.columnNameOfParentTable
       val childSide = childTable.name + "." + line.value.columnNameOfChildTable
 
       val postfix = if (line.value._1toNRelation) s" GROUP BY $parentSide" else ""
-      ("SELECT " + columnNames.mkString(", ") + s" FROM ${parentTable.name} JOIN ${childTable.name} " +
-        s"ON $parentSide = $childSide$postfix", (parentTableColumns ++ childTableColumns).map(_._2))
+      (s"SELECT $columnsDefinition FROM ${parentTable.name} JOIN ${childTable.name} " +
+        s"ON $parentSide = $childSide$postfix", parentTableColumns ++ childTableColumns)
     }
   }
 }

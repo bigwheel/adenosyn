@@ -179,6 +179,28 @@ class WiringSpec extends FunSpec with Matchers {
         stripMargin.split("\n").map(_.trim).mkString(" "))
   }
 
+  def toTableStructure(jsValue: JsValue): Dot[Table, JoinDefinition] = {
+    jsValue match {
+      case JsObject(Some(table), _) =>
+        Dot[Table, JoinDefinition](table)
+    }
+  }
+
+  it("1最も単純なjsonオブジェクトを組み立てられる") {
+    val jsValue = JsObject(
+      artistTable.some,
+      Map[String, OldJsValue](
+        "name" -> OldJsString("artist", "name")
+      )
+    )
+    val tableStructure: Dot[Table, JoinDefinition] = toTableStructure(jsValue)
+    val sqlResult = SQL(table.toSql(tableStructure)._1).map(_.toMap).list.apply()
+    def sqlResultToJson: List[Json] = sqlResult.map { row =>
+      Json("name" := row("artist__name").asInstanceOf[String])
+    }
+    sqlResultToJson should equal(List(Json("name" := "水樹奈々")))
+  }
+
   case class TestCase(title: String, input: OldJsValue, expected: List[Json])
   val tests = Seq[TestCase](
     TestCase(
@@ -243,7 +265,7 @@ class WiringSpec extends FunSpec with Matchers {
     )*/
   )
 
-  def sqlResultToJson(sqlResult: List[Map[String, Any]]): List[Json] = sqlResult.map { row =>
+  def oldSqlResultToJson(sqlResult: List[Map[String, Any]]): List[Json] = sqlResult.map { row =>
     val columnRegex = "^(.+)_([^_]+)$".r
     row.toSeq.map { case (columnRegex(trueColumnName, typeAnnotation), joinedValues: String) =>
       val value = typeAnnotation match {
@@ -257,7 +279,7 @@ class WiringSpec extends FunSpec with Matchers {
   for (test <- tests) {
     it(test.title) {
       val sqlResult = SQL(test.input.toSql).map(_.toMap).list.apply()
-      sqlResult |> sqlResultToJson should equal(test.expected)
+      sqlResult |> oldSqlResultToJson should equal(test.expected)
     }
   }
 
