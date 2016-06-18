@@ -84,11 +84,11 @@ class WiringSpec extends FunSpec with Matchers {
 
   createFixtures
 
-  it("開発環境VMが動いている") {
+  /*it("開発環境VMが動いている") {
     val result = Process("otto dev vagrant status").!!
     result.split("\n")(3) should
       equal("default                   running (virtualbox)")
-  }
+  }*/
 
   it("開発環境のIPアドレスが正しく取得できる") {
     ipAddress should fullyMatch regex """\A\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\Z"""
@@ -203,36 +203,43 @@ class WiringSpec extends FunSpec with Matchers {
       }
     }
 
-  it("rem最も単純なjsonオブジェクトを組み立てられる") {
-    val jsValue = JsObject(
-      artistTable.some,
-      Map[String, JsValue](
-        "name" -> JsString("artist", "name")
-      )
-    )
-    val tableStructure: Dot[Table, JoinDefinition] = toTableStructure(jsValue)
-    val sqlResult = SQL(table.toSql(tableStructure)._1).map(_.toMap).list.apply()
-    def sqlResultToJson: List[Json] = toJsonObj(sqlResult, jsValue)
-    sqlResultToJson should equal(List(Json("name" := "水樹奈々")))
-  }
-
-  it("rem複数プロパティのjsonオブジェクトを組み立てられる") {
-    val jsValue = JsObject(
-      artistTable.some,
-      Map[String, JsValue](
-        "id" -> JsInt("artist", "id"),
-        "name" -> JsString("artist", "name")
-      )
-    )
-    val tableStructure: Dot[Table, JoinDefinition] = toTableStructure(jsValue)
-    val sqlResult = SQL(table.toSql(tableStructure)._1).map(_.toMap).list.apply()
-    def sqlResultToJson: List[Json] = toJsonObj(sqlResult, jsValue)
-    sqlResultToJson should equal(List(Json("id" := 1, "name" := "水樹奈々")))
-  }
-
-  case class TestCase(title: String, input: OldJsValue, expected: List[Json])
+  case class TestCase(title: String, input: JsValue, expected: List[Json])
   val tests = Seq[TestCase](
     TestCase(
+      "最も単純なjsonオブジェクトを組み立てられる",
+      JsObject(
+        artistTable.some,
+        Map[String, JsValue](
+          "name" -> JsString("artist", "name")
+        )
+      ),
+      List(Json("name" := "水樹奈々"))
+    ),
+    TestCase(
+      "複数プロパティのjsonオブジェクトを組み立てられる",
+      JsObject(
+        artistTable.some,
+        Map[String, JsValue](
+          "id" -> JsInt("artist", "id"),
+          "name" -> JsString("artist", "name")
+        )
+      ),
+      List(Json("id" := 1, "name" := "水樹奈々"))
+    )
+  )
+
+  for (test <- tests) {
+    it(test.title) {
+      val tableStructure: Dot[Table, JoinDefinition] = toTableStructure(test.input)
+      val sqlResult = SQL(table.toSql(tableStructure)._1).map(_.toMap).list.apply()
+      def sqlResultToJson: List[Json] = toJsonObj(sqlResult, test.input)
+      sqlResultToJson should equal(test.expected)
+    }
+  }
+
+  /*case class OldTestCase(title: String, input: OldJsValue, expected: List[Json])
+  val oldTests = Seq[OldTestCase](
+    OldTestCase(
       "最も単純なjsonオブジェクトを組み立てられる",
       OldJsObject(
         OldTable("artist").some,
@@ -241,7 +248,7 @@ class WiringSpec extends FunSpec with Matchers {
         )
       ),
       List(Json("name" := "水樹奈々"))
-    )/*,
+    ),
     Test(
       "複数プロパティのjsonオブジェクトを組み立てられる",
       JsObject(
@@ -291,7 +298,7 @@ class WiringSpec extends FunSpec with Matchers {
         "name" := "水樹奈々",
         "musics" := Json.array(jString("深愛"), jString("innocent starter"))
       ))
-    )*/
+    )
   )
 
   def oldSqlResultToJson(sqlResult: List[Map[String, Any]]): List[Json] = sqlResult.map { row =>
@@ -305,11 +312,11 @@ class WiringSpec extends FunSpec with Matchers {
     } |> Json.apply
   }
 
-  for (test <- tests) {
+  for (test <- oldTests) {
     it(test.title) {
       val sqlResult = SQL(test.input.toSql).map(_.toMap).list.apply()
       sqlResult |> oldSqlResultToJson should equal(test.expected)
     }
-  }
+  }*/
 
 }
