@@ -179,36 +179,36 @@ class WiringSpec extends FunSpec with Matchers {
         stripMargin.split("\n").map(_.trim).mkString(" "))
   }
 
-  def toTableStructure(jsValue: JsValue): Dot[Table, JoinDefinition] = {
-    jsValue match {
-      case JsObject(Some(table), _) =>
-        Dot[Table, JoinDefinition](table)
-    }
+  def toTableStructure(jsValue: JsValue): Dot[Table, JoinDefinition] = jsValue match {
+    case JsObject(Some(dots), _) => dots
   }
 
-  def toJsonObj(sqlResult: List[Map[String, Any]], jsonStructure: JsValue): List[Json] =
-    for (row <- sqlResult) yield {
-      jsonStructure match {
-        case JsObject(_, properties) =>
-          val c = properties.map { property =>
-            property._2 match {
-              case a: JsString =>
-                property._1 := row(a.tableName + "__" + a.columnName).asInstanceOf[String]
-              case a: JsInt =>
-                property._1 := row(a.tableName + "__" + a.columnName).asInstanceOf[Int]
-            }
+  def toJsonObj(sqlResult: List[Map[String, Any]], jsonStructure: JsValue): List[Json] = {
+    def f(row: Map[String, Any], jsonStructure: JsValue): Json = jsonStructure match {
+      case JsObject(_, properties) =>
+        val c = properties.map { property =>
+          property._2 match {
+            case a: JsString =>
+              property._1 := row(a.tableName + "__" + a.columnName).asInstanceOf[String]
+            case a: JsInt =>
+              property._1 := row(a.tableName + "__" + a.columnName).asInstanceOf[Int]
+            case a: JsObject =>
+              property._1 := f(row, a)
           }
-          Json(c.toSeq: _*)
-        case _ => ???
-      }
+        }
+        Json(c.toSeq: _*)
+      case _ => ???
     }
+
+    for (row <- sqlResult) yield f(row, jsonStructure)
+  }
 
   case class TestCase(title: String, input: JsValue, expected: List[Json])
   val tests = Seq[TestCase](
     TestCase(
       "最も単純なjsonオブジェクトを組み立てられる",
       JsObject(
-        artistTable.some,
+        Dot[Table, JoinDefinition](artistTable).some,
         Map[String, JsValue](
           "name" -> JsString("artist", "name")
         )
@@ -218,13 +218,49 @@ class WiringSpec extends FunSpec with Matchers {
     TestCase(
       "複数プロパティのjsonオブジェクトを組み立てられる",
       JsObject(
-        artistTable.some,
+        Dot[Table, JoinDefinition](artistTable).some,
         Map[String, JsValue](
           "id" -> JsInt("artist", "id"),
           "name" -> JsString("artist", "name")
         )
       ),
       List(Json("id" := 1, "name" := "水樹奈々"))
+    ),
+    TestCase(
+      "単純チェインのテーブルJOINでjsonオブジェクトを組み立てられる",
+      JsObject(
+        Dot[Table, JoinDefinition](
+          artistTable,
+          Line[JoinDefinition, Table](
+            JoinDefinition("id", false, "artist_id"),
+            Dot[Table, JoinDefinition](artistKanaTable)
+          )
+        ).some,
+        Map[String, JsValue](
+          "name" -> JsString("artist", "name"),
+          "kana" -> JsString("artist_kana", "kana")
+        )
+      ),
+      List(Json("name" := "水樹奈々", "kana" := "みずきなな"))
+    ),
+    TestCase(
+      "単純にjsonオブジェクトがネストしていても組み立てられる",
+      JsObject(
+        Dot[Table, JoinDefinition](artistTable).some,
+        Map[String, JsValue](
+          "name" -> JsString("artist", "name"),
+          "nest" -> JsObject(
+            None,
+            Map[String, JsValue](
+              "name" -> JsString("artist", "name")
+            )
+          )
+        )
+      ),
+      List(Json(
+        "name" := "水樹奈々",
+        "nest" := Json("name" := "水樹奈々")
+      ))
     )
   )
 
@@ -239,45 +275,6 @@ class WiringSpec extends FunSpec with Matchers {
 
   /*case class OldTestCase(title: String, input: OldJsValue, expected: List[Json])
   val oldTests = Seq[OldTestCase](
-    OldTestCase(
-      "最も単純なjsonオブジェクトを組み立てられる",
-      OldJsObject(
-        OldTable("artist").some,
-        Map[String, OldJsValue](
-          "name" -> OldJsString("artist", "name")
-        )
-      ),
-      List(Json("name" := "水樹奈々"))
-    ),
-    Test(
-      "複数プロパティのjsonオブジェクトを組み立てられる",
-      JsObject(
-        Table("artist").some,
-        Map[String, JsValue](
-          "id" -> JsInt("artist", "id"),
-          "name" -> JsString("artist", "name")
-        )
-      ),
-      List(Json("id" := 1, "name" := "水樹奈々"))
-    ),
-    Test(
-      "単純チェインのテーブルJOINでjsonオブジェクトを組み立てられる",
-      JsObject(
-        Table(
-          "artist",
-          ChainedTable(
-            "artist_kana",
-            "id",
-            "artist_id"
-          ).some
-        ).some,
-        Map[String, JsValue](
-          "name" -> JsString("artist", "name"),
-          "kana" -> JsString("artist_kana", "kana")
-        )
-      ),
-      List(Json("name" := "水樹奈々", "kana" := "みずきなな"))
-    ),
     Test(
       "単純にjsonオブジェクトがネストしていても組み立てられる",
       JsObject(
