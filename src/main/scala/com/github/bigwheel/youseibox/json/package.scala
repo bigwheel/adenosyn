@@ -1,8 +1,6 @@
 package com.github.bigwheel.youseibox
 
-import com.github.bigwheel.youseibox.table.OldTable
 import com.github.bigwheel.youseibox.table.Table
-import com.github.bigwheel.youseibox.table._1toNTable
 
 // あとでstructureとかそのままのjsonじゃなくてjsonの構造を定義するものだという意味を名前にきちんと込める
 package object json {
@@ -17,7 +15,7 @@ package object json {
   case class JsString(tableName: String, columnName: String) extends JsValue
   case class JsInt(tableName: String, columnName: String) extends JsValue
 
-  trait OldJsValue {
+  /*trait OldJsValue {
     def tableStructure: String
     def toSql: String
   }
@@ -59,6 +57,6 @@ package object json {
         case None => selectBody
       }
     }
-  }
+  }*/
 
 }
