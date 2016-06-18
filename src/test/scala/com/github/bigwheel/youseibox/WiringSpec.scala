@@ -186,19 +186,48 @@ class WiringSpec extends FunSpec with Matchers {
     }
   }
 
-  it("1最も単純なjsonオブジェクトを組み立てられる") {
+  def toJsonObj(sqlResult: List[Map[String, Any]], jsonStructure: JsValue): List[Json] =
+    for (row <- sqlResult) yield {
+      jsonStructure match {
+        case JsObject(_, properties) =>
+          val c = properties.map { property =>
+            property._2 match {
+              case a: JsString =>
+                property._1 := row(a.tableName + "__" + a.columnName).asInstanceOf[String]
+              case a: JsInt =>
+                property._1 := row(a.tableName + "__" + a.columnName).asInstanceOf[Int]
+            }
+          }
+          Json(c.toSeq: _*)
+        case _ => ???
+      }
+    }
+
+  it("rem最も単純なjsonオブジェクトを組み立てられる") {
     val jsValue = JsObject(
       artistTable.some,
-      Map[String, OldJsValue](
-        "name" -> OldJsString("artist", "name")
+      Map[String, JsValue](
+        "name" -> JsString("artist", "name")
       )
     )
     val tableStructure: Dot[Table, JoinDefinition] = toTableStructure(jsValue)
     val sqlResult = SQL(table.toSql(tableStructure)._1).map(_.toMap).list.apply()
-    def sqlResultToJson: List[Json] = sqlResult.map { row =>
-      Json("name" := row("artist__name").asInstanceOf[String])
-    }
+    def sqlResultToJson: List[Json] = toJsonObj(sqlResult, jsValue)
     sqlResultToJson should equal(List(Json("name" := "水樹奈々")))
+  }
+
+  it("rem複数プロパティのjsonオブジェクトを組み立てられる") {
+    val jsValue = JsObject(
+      artistTable.some,
+      Map[String, JsValue](
+        "id" -> JsInt("artist", "id"),
+        "name" -> JsString("artist", "name")
+      )
+    )
+    val tableStructure: Dot[Table, JoinDefinition] = toTableStructure(jsValue)
+    val sqlResult = SQL(table.toSql(tableStructure)._1).map(_.toMap).list.apply()
+    def sqlResultToJson: List[Json] = toJsonObj(sqlResult, jsValue)
+    sqlResultToJson should equal(List(Json("id" := 1, "name" := "水樹奈々")))
   }
 
   case class TestCase(title: String, input: OldJsValue, expected: List[Json])
