@@ -94,10 +94,10 @@ class WiringSpec extends FunSpec with Matchers {
     ipAddress should fullyMatch regex """\A\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\Z"""
   }
 
-  val artistTable = Table("artist", "id", "name")
-  val artistKanaTable = Table("artist_kana", "artist_id", "kana")
-  val musicTable = Table("music", "id", "artist_id", "name")
-  val contentTable = Table("content", "id", "music_id", "name")
+  val artistTable = new Table("artist", "id", "name")
+  val artistKanaTable = new Table("artist_kana", "artist_id", "kana")
+  val musicTable = new Table("music", "id", "artist_id", "name")
+  val contentTable = new Table("content", "id", "music_id", "name")
 
   it("1対1の関係のJOINができる") {
     val tableStructure = Dot[Table, JoinDefinition](

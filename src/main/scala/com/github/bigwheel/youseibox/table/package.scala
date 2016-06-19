@@ -16,7 +16,10 @@ package object table {
   case class Dot[D, L](value: D, lines: Line[L, D]*)
   case class Line[L, D](value: L, child: Dot[D, L])
 
-  case class Table(name: String, columnNames: String*)
+  class Table(val name: String, columnNames: String*) {
+    val columns: Seq[Column] = columnNames.map(new Column(_, this))
+  }
+  case class Column(name: String, table: Table)
   case class JoinDefinition(
     columnNameOfParentTable: String,
     _1toNRelation: Boolean,
@@ -29,9 +32,9 @@ package object table {
   def toSql(tableStructure: Dot[Table, JoinDefinition]): (String, Seq[FullColumnInfo])  = {
     if (tableStructure.lines.isEmpty) {
       val parentTable = tableStructure.value
-      val parentTableColumns = parentTable.columnNames.map { columnName =>
-        FullColumnInfo(s"${parentTable.name}.$columnName", s"${parentTable.name}__$columnName",
-          parentTable.name, columnName)
+      val parentTableColumns = parentTable.columns.map { column =>
+        FullColumnInfo(s"${parentTable.name}.${column.name}", s"${parentTable.name}__${column.name}",
+          parentTable.name, column.name)
       }
       val columnsDefinition = parentTableColumns.map(_.toColumnDefinition).mkString(", ")
 
@@ -44,9 +47,9 @@ package object table {
       val dot = tableStructure
 
       val parentTable = dot.value
-      val parentTableColumns = parentTable.columnNames.map { columnName =>
-        FullColumnInfo(s"${parentTable.name}.$columnName", s"${parentTable.name}__$columnName",
-          parentTable.name, columnName)
+      val parentTableColumns = parentTable.columns.map { column =>
+        FullColumnInfo(s"${parentTable.name}.${column.name}", s"${parentTable.name}__${column.name}",
+          parentTable.name, column.name)
       }
       val line = dot.lines.head
       val childTableColumns = fullColumnsInfos.map { fci =>
@@ -71,18 +74,18 @@ package object table {
       val dot = tableStructure
 
       val parentTable = dot.value
-      val parentTableColumns = parentTable.columnNames.map { columnName =>
-        FullColumnInfo(s"${parentTable.name}.$columnName", s"${parentTable.name}__$columnName",
-          parentTable.name, columnName)
+      val parentTableColumns = parentTable.columns.map { column =>
+        FullColumnInfo(s"${parentTable.name}.${column.name}", s"${parentTable.name}__${column.name}",
+          parentTable.name, column.name)
       }
       val line = dot.lines.head
       val childTable = line.child.value
-      val childTableColumns = childTable.columnNames.map { columnName =>
-        val base = s"${childTable.name}.$columnName"
+      val childTableColumns = childTable.columns.map { column =>
+        val base = s"${childTable.name}.${column.name}"
         if (line.value._1toNRelation)
-          FullColumnInfo(s"GROUP_CONCAT($base)", s"${childTable.name}__${columnName}s", childTable.name, columnName)
+          FullColumnInfo(s"GROUP_CONCAT($base)", s"${childTable.name}__${column.name}s", childTable.name, column.name)
         else
-          FullColumnInfo(base, s"${childTable.name}__$columnName", childTable.name, columnName)
+          FullColumnInfo(base, s"${childTable.name}__${column.name}", childTable.name, column.name)
       }
 
       val columnsDefinition = (parentTableColumns ++ childTableColumns).map(_.toColumnDefinition).mkString(", ")
