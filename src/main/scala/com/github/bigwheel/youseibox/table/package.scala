@@ -35,10 +35,11 @@ package object table {
   def toSql(tableStructure: Dot[Table, JoinDefinition]): (String, Set[FullColumnInfo])  = {
     if (tableStructure.lines.isEmpty) {
       val parentTable = tableStructure.value
-      val parentTableColumns = parentTable.columns.map { column =>
-        FullColumnInfo(s"${parentTable.name}.${column.name}", s"${parentTable.name}__${column.name}",
+      val parentTableColumns = for (column <- parentTable.columns) yield
+        FullColumnInfo(
+          s"${column.table.name}.${column.name}",
+          s"${column.table.name}__${column.name}",
           column)
-      }
       val columnsDefinition = parentTableColumns.map(_.toColumnDefinition).mkString(", ")
 
       (s"SELECT $columnsDefinition FROM ${parentTable.name}", parentTableColumns)
