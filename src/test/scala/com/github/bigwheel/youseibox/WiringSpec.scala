@@ -129,11 +129,11 @@ class WiringSpec extends FunSpec with Matchers {
     table.toSql(tableStructure)._1 should
       equal(
         """SELECT
-          | artist.id AS artist__id,
-          | artist.name AS artist__name,
-          | GROUP_CONCAT(music.id) AS music__ids,
+          | GROUP_CONCAT(music.name) AS music__names,
           | GROUP_CONCAT(music.artist_id) AS music__artist_ids,
-          | GROUP_CONCAT(music.name) AS music__names
+          | GROUP_CONCAT(music.id) AS music__ids,
+          | artist.name AS artist__name,
+          | artist.id AS artist__id
           | FROM artist JOIN music
           | ON artist.id = music.artist_id
           | GROUP BY artist.id""".stripMargin.split("\n").map(_.trim).mkString(" "))
@@ -155,23 +155,23 @@ class WiringSpec extends FunSpec with Matchers {
     )
     table.toSql(tableStructure)._1 should
       equal("""SELECT
-              | artist.id AS artist__id,
-              | artist.name AS artist__name,
-              | GROUP_CONCAT(A.music__id) AS music__ids,
-              | GROUP_CONCAT(A.music__artist_id) AS music__artist_ids,
-              | GROUP_CONCAT(A.music__name) AS music__names,
-              | GROUP_CONCAT(A.content__ids) AS content__idss,
               | GROUP_CONCAT(A.content__music_ids) AS content__music_idss,
-              | GROUP_CONCAT(A.content__names) AS content__namess
+              | GROUP_CONCAT(A.music__name) AS music__names,
+              | artist.name AS artist__name,
+              | GROUP_CONCAT(A.content__names) AS content__namess,
+              | GROUP_CONCAT(A.music__artist_id) AS music__artist_ids,
+              | artist.id AS artist__id,
+              | GROUP_CONCAT(A.music__id) AS music__ids,
+              | GROUP_CONCAT(A.content__ids) AS content__idss
               | FROM artist JOIN
               | (
               |   SELECT
               |     music.id AS music__id,
               |     music.artist_id AS music__artist_id,
               |     music.name AS music__name,
-              |     GROUP_CONCAT(content.id) AS content__ids,
               |     GROUP_CONCAT(content.music_id) AS content__music_ids,
-              |     GROUP_CONCAT(content.name) AS content__names
+              |     GROUP_CONCAT(content.name) AS content__names,
+              |     GROUP_CONCAT(content.id) AS content__ids
               |   FROM music JOIN content
               |   ON music.id = content.music_id GROUP BY music.id
               | ) AS A
