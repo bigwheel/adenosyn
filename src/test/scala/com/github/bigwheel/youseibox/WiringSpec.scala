@@ -273,47 +273,4 @@ class WiringSpec extends FunSpec with Matchers {
     }
   }
 
-  /*case class OldTestCase(title: String, input: OldJsValue, expected: List[Json])
-  val oldTests = Seq[OldTestCase](
-    Test(
-      "単純にjsonオブジェクトがネストしていても組み立てられる",
-      JsObject(
-        Table(
-          "artist"
-        ).some,
-        Map[String, JsValue](
-          "name" -> JsString("artist", "name"),
-          "nest" -> JsObject(
-            None,
-            Map[String, JsValue](
-              "name" -> JsString("artist", "name")
-            )
-          )
-        )
-      ),
-      List(Json(
-        "name" := "水樹奈々",
-        "musics" := Json.array(jString("深愛"), jString("innocent starter"))
-      ))
-    )
-  )
-
-  def oldSqlResultToJson(sqlResult: List[Map[String, Any]]): List[Json] = sqlResult.map { row =>
-    val columnRegex = "^(.+)_([^_]+)$".r
-    row.toSeq.map { case (columnRegex(trueColumnName, typeAnnotation), joinedValues: String) =>
-      val value = typeAnnotation match {
-        case "INT" => jNumber(joinedValues.toInt)
-        case "STRING" => jString(joinedValues)
-      }
-      trueColumnName := value
-    } |> Json.apply
-  }
-
-  for (test <- oldTests) {
-    it(test.title) {
-      val sqlResult = SQL(test.input.toSql).map(_.toMap).list.apply()
-      sqlResult |> oldSqlResultToJson should equal(test.expected)
-    }
-  }*/
-
 }
