@@ -17,7 +17,9 @@ package object table {
     def getColumn(name: String): Column = columns.find(_.name === name).get
   }
 
-  class Column(val name: String, val table: Table)
+  class Column(val name: String, val table: Table) {
+    def toSql = table.name + "." + name
+  }
   case class JoinDefinition(columnOfParentTable: Column, _1toNRelation: Boolean, columnOfChildTable: Column)
 
   case class FullColumnInfo(columnExpression: String, nowColumnName: String, originalColumn: Column) {
@@ -27,52 +29,27 @@ package object table {
     val toColumnDefinition = s"$columnExpression AS $nowColumnName"
   }
 
-  private def tableToSqlPlusColumnInfo(table: Table): (String, Set[FullColumnInfo]) = {
-    val fullColumnInfoes = for (column <- table.columns) yield new FullColumnInfo(column)
-    val columnsDefinition = fullColumnInfoes.map(_.toColumnDefinition).mkString(", ")
+  implicit class RichFullColumnInfoSet(fciSet: Set[FullColumnInfo]) {
+    def getSelectSqlBody: String = fciSet.map(_.toColumnDefinition).mkString(", ")
+  }
 
-    (s"SELECT $columnsDefinition FROM ${table.name}", fullColumnInfoes)
+  private def tableToSqlPlusColumnInfo(table: Table): (String, Set[FullColumnInfo]) = {
+    val fullColumnInfoSet = for (column <- table.columns) yield new FullColumnInfo(column)
+    val columnsDefinition = fullColumnInfoSet.getSelectSqlBody
+
+    (s"SELECT $columnsDefinition FROM ${table.name}", fullColumnInfoSet)
   }
 
   // 返り値2つ目はカラム名とそのオリジナルのテーブル名・カラム名
   def toSql(tableTree: Dot[Table, JoinDefinition]): (String, Set[FullColumnInfo]) = {
     if (tableTree.lines.isEmpty) {
       tableToSqlPlusColumnInfo(tableTree.value)
-    } else if (tableTree.lines.head.dot.lines.nonEmpty) {
-      val (sql, fullColumnsInfoes) = toSql(tableTree.lines.head.dot)
+    } else if (tableTree.lines.head.dot.lines.isEmpty) {
+      val parentTable = tableTree.value
+      val joinDefinition = tableTree.lines.head.value
+      val childTable = tableTree.lines.head.dot.value
 
-      val temporaryTableName = "A"
-
-      val dot = tableTree
-
-      val parentTable = dot.value
       val parentTableColumns = parentTable.columns.map { column => new FullColumnInfo(column) }
-      val joinDefinition = dot.lines.head.value
-      val childTableColumns = fullColumnsInfoes.map { fci =>
-        val base = s"$temporaryTableName.${fci.nowColumnName}"
-        if (joinDefinition._1toNRelation)
-          FullColumnInfo(s"GROUP_CONCAT($base)", s"${fci.nowColumnName}s", fci.originalColumn)
-        else
-          FullColumnInfo(base, fci.nowColumnName, fci.originalColumn)
-      }
-
-      val columnsDefinition = (parentTableColumns ++ childTableColumns).map(_.toColumnDefinition).mkString(", ")
-      val nestedTable = "( " + sql + " ) AS " + temporaryTableName
-
-      val parentSide = parentTable.name + "." + joinDefinition.columnOfParentTable.name
-      val childSide = temporaryTableName + "." + tableTree.lines.head.dot.value.name + "__" +
-        joinDefinition.columnOfChildTable.name
-
-      val postfix = if (joinDefinition._1toNRelation) s" GROUP BY $parentSide" else ""
-      (s"SELECT $columnsDefinition FROM ${parentTable.name} JOIN $nestedTable " +
-        s"ON $parentSide = $childSide$postfix", parentTableColumns ++ childTableColumns)
-    } else {
-      val dot = tableTree
-
-      val parentTable = dot.value
-      val parentTableColumns = parentTable.columns.map { column => new FullColumnInfo(column) }
-      val joinDefinition = dot.lines.head.value
-      val childTable = dot.lines.head.dot.value
       val childTableColumns = childTable.columns.map { column =>
         val base = s"${childTable.name}.${column.name}"
         if (joinDefinition._1toNRelation)
@@ -81,7 +58,7 @@ package object table {
           FullColumnInfo(base, s"${childTable.name}__${column.name}", column)
       }
 
-      val columnsDefinition = (parentTableColumns ++ childTableColumns).map(_.toColumnDefinition).mkString(", ")
+      val columnsDefinition = (parentTableColumns ++ childTableColumns).getSelectSqlBody
 
       val parentSide = parentTable.name + "." + joinDefinition.columnOfParentTable.name
       val childSide = childTable.name + "." + joinDefinition.columnOfChildTable.name
@@ -89,6 +66,36 @@ package object table {
       val postfix = if (joinDefinition._1toNRelation) s" GROUP BY $parentSide" else ""
       (s"SELECT $columnsDefinition FROM ${parentTable.name} JOIN ${childTable.name} " +
         s"ON $parentSide = $childSide$postfix", parentTableColumns ++ childTableColumns)
+    } else {
+      // 各種定義 & わかりやすくさのための別名定義
+      val temporaryTableName = "A"
+      val parentTable = tableTree.value
+      val joinDefinition = tableTree.lines.head.value
+      val childTable = tableTree.lines.head.dot.value
+
+      // 子テーブル系の処理
+      val (sql, childTableFCIs) = toSql(tableTree.lines.head.dot)
+      val nestedTableSql = "( " + sql + " ) AS " + temporaryTableName
+
+      // 親テーブルのためのFCIsの算出
+      val parentTableFCIs = parentTable.columns.map { column => new FullColumnInfo(column) }
+      val ChildTableFCIsForParentSelect = childTableFCIs.map { fci =>
+        val base = s"$temporaryTableName.${fci.nowColumnName}"
+        if (joinDefinition._1toNRelation)
+          FullColumnInfo(s"GROUP_CONCAT($base)", fci.nowColumnName + "s", fci.originalColumn)
+        else
+          FullColumnInfo(base, fci.nowColumnName, fci.originalColumn)
+      }
+      val FCIsForParentSelect = parentTableFCIs ++ ChildTableFCIsForParentSelect
+
+
+      val parentSide = joinDefinition.columnOfParentTable.toSql
+      val childSide = temporaryTableName + "." + childTable.name + "__" +
+        joinDefinition.columnOfChildTable.name
+
+      val postfix = if (joinDefinition._1toNRelation) s" GROUP BY $parentSide" else ""
+      (s"SELECT ${FCIsForParentSelect.getSelectSqlBody} FROM ${parentTable.name} JOIN $nestedTableSql " +
+        s"ON $parentSide = $childSide$postfix", FCIsForParentSelect)
     }
   }
 }
