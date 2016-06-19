@@ -1,5 +1,8 @@
 package com.github.bigwheel.youseibox
 
+import scalaz._
+import Scalaz._
+
 package object table {
 
   case class OldTable(name: String, chainedTableOption: Option[ChainedTable] = None) {
@@ -19,14 +22,11 @@ package object table {
   class Table(val name: String, columnNames: String*) {
     require(columnNames.distinct.size == columnNames.size) // カラム名はユニークでなければならない
     val columns: Set[Column] = columnNames.map(new Column(_, this)).toSet
-    def getColumn(name: String): Option[Column] = columns.find(_ == name)
+    def getColumn(name: String): Column = columns.find(_.name === name).get
   }
 
   class Column(val name: String, val table: Table)
-  case class JoinDefinition(
-    columnNameOfParentTable: String,
-    _1toNRelation: Boolean,
-    columnNameOfChildTable: String)
+  case class JoinDefinition(columnOfParentTable: Column, _1toNRelation: Boolean, columnOfChildTable: Column)
 
   case class FullColumnInfo(columnExpression: String, nowColumnName: String, originalColumn: Column) {
     val toColumnDefinition = s"$columnExpression AS $nowColumnName"
@@ -66,9 +66,9 @@ package object table {
       val columnsDefinition = (parentTableColumns ++ childTableColumns).map(_.toColumnDefinition).mkString(", ")
       val nestedTable = "( " + sql + " ) AS " + temporaryTableName
 
-      val parentSide = parentTable.name + "." + line.value.columnNameOfParentTable
+      val parentSide = parentTable.name + "." + line.value.columnOfParentTable.name
       val childSide = temporaryTableName + "." + tableStructure.lines.head.child.value.name + "__" +
-        line.value.columnNameOfChildTable
+        line.value.columnOfChildTable.name
 
       val postfix = if (line.value._1toNRelation) s" GROUP BY $parentSide" else ""
       (s"SELECT $columnsDefinition FROM ${parentTable.name} JOIN $nestedTable " +
@@ -93,8 +93,8 @@ package object table {
 
       val columnsDefinition = (parentTableColumns ++ childTableColumns).map(_.toColumnDefinition).mkString(", ")
 
-      val parentSide = parentTable.name + "." + line.value.columnNameOfParentTable
-      val childSide = childTable.name + "." + line.value.columnNameOfChildTable
+      val parentSide = parentTable.name + "." + line.value.columnOfParentTable.name
+      val childSide = childTable.name + "." + line.value.columnOfChildTable.name
 
       val postfix = if (line.value._1toNRelation) s" GROUP BY $parentSide" else ""
       (s"SELECT $columnsDefinition FROM ${parentTable.name} JOIN ${childTable.name} " +

@@ -103,7 +103,7 @@ class WiringSpec extends FunSpec with Matchers {
     val tableStructure = Dot[Table, JoinDefinition](
       artistTable,
       Line[JoinDefinition, Table](
-        JoinDefinition("id", false, "artist_id"),
+        JoinDefinition(artistTable.getColumn("id"), false, artistKanaTable.getColumn("artist_id")),
         Dot[Table, JoinDefinition](artistKanaTable)
       )
     )
@@ -122,7 +122,7 @@ class WiringSpec extends FunSpec with Matchers {
     val tableStructure = Dot[Table, JoinDefinition](
       artistTable,
       Line[JoinDefinition, Table](
-        JoinDefinition("id", true, "artist_id"),
+        JoinDefinition(artistTable.getColumn("id"), true, musicTable.getColumn("artist_id")),
         Dot[Table, JoinDefinition](musicTable)
       )
     )
@@ -143,11 +143,11 @@ class WiringSpec extends FunSpec with Matchers {
     val tableStructure = Dot[Table, JoinDefinition](
       artistTable,
       Line[JoinDefinition, Table](
-        JoinDefinition("id", true, "artist_id"),
+        JoinDefinition(artistTable.getColumn("id"), true, musicTable.getColumn("artist_id")),
         Dot[Table, JoinDefinition](
           musicTable,
           Line[JoinDefinition, Table](
-            JoinDefinition("id", true, "music_id"),
+            JoinDefinition(musicTable.getColumn("id"), true, contentTable.getColumn("music_id")),
             Dot[Table, JoinDefinition](contentTable)
           )
         )
@@ -232,7 +232,7 @@ class WiringSpec extends FunSpec with Matchers {
         Dot[Table, JoinDefinition](
           artistTable,
           Line[JoinDefinition, Table](
-            JoinDefinition("id", false, "artist_id"),
+            JoinDefinition(artistTable.getColumn("id"), false, artistKanaTable.getColumn("artist_id")),
             Dot[Table, JoinDefinition](artistKanaTable)
           )
         ).some,
