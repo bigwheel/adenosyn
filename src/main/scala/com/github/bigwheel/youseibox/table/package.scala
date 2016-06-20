@@ -22,15 +22,17 @@ package object table {
   }
   case class JoinDefinition(columnOfParentTable: Column, _1toNRelation: Boolean, columnOfChildTable: Column)
 
+  object FullColumnInfo {
+    implicit class RichFullColumnInfoSet(fciSet: Set[FullColumnInfo]) {
+      def getSelectSqlBody: String = fciSet.map(_.toColumnDefinition).mkString(", ")
+    }
+  }
+
   case class FullColumnInfo(columnExpression: String, nowColumnName: String, originalColumn: Column) {
     def this(column: Column) = this(s"${column.table.name}.${column.name}",
       s"${column.table.name}__${column.name}", column)
 
     val toColumnDefinition = s"$columnExpression AS $nowColumnName"
-  }
-
-  implicit class RichFullColumnInfoSet(fciSet: Set[FullColumnInfo]) {
-    def getSelectSqlBody: String = fciSet.map(_.toColumnDefinition).mkString(", ")
   }
 
   private def tableToSqlPlusColumnInfo(table: Table): (String, Set[FullColumnInfo]) = {
