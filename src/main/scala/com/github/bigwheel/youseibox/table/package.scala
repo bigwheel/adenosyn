@@ -43,60 +43,59 @@ package object table {
   def toSql(tableTree: Dot[Table, JoinDefinition]): (String, Set[FullColumnInfo]) = {
     if (tableTree.lines.isEmpty) {
       tableToSqlPlusColumnInfo(tableTree.value)
-    } else if (tableTree.lines.head.dot.lines.isEmpty) {
-      val parentTable = tableTree.value
-      val joinDefinition = tableTree.lines.head.value
-      val childTable = tableTree.lines.head.dot.value
-
-      val FCIsForParentSelect = {
-        val parentTableFCIs = parentTable.columns.map { column => new FullColumnInfo(column) }
-        val childTableFCIsForParentSelect = childTable.columns.map { column =>
-          val base = s"${childTable.name}.${column.name}"
-          if (joinDefinition._1toNRelation)
-            FullColumnInfo(s"GROUP_CONCAT($base)", s"${childTable.name}__${column.name}s", column)
-          else
-            FullColumnInfo(base, s"${childTable.name}__${column.name}", column)
-        }
-        parentTableFCIs ++ childTableFCIsForParentSelect
-      }
-
-      val parentSide = parentTable.name + "." + joinDefinition.columnOfParentTable.name
-      val childSide = childTable.name + "." + joinDefinition.columnOfChildTable.name
-
-      val postfix = if (joinDefinition._1toNRelation) s" GROUP BY $parentSide" else ""
-      (s"SELECT ${FCIsForParentSelect.getSelectSqlBody} FROM ${parentTable.name} JOIN ${childTable.name} " +
-        s"ON $parentSide = $childSide$postfix", FCIsForParentSelect)
     } else {
-      // 各種定義 & わかりやすくさのための別名定義
-      val temporaryTableName = "A"
       val parentTable = tableTree.value
       val joinDefinition = tableTree.lines.head.value
       val childTable = tableTree.lines.head.dot.value
-
-      // 子テーブル系の処理
-      val (sql, childTableFCIs) = toSql(tableTree.lines.head.dot)
-      val nestedTableSql = "( " + sql + " ) AS " + temporaryTableName
-
-      // 親テーブルのためのFCIsの算出
-      val FCIsForParentSelect = {
-        val parentTableFCIs = parentTable.columns.map { column => new FullColumnInfo(column) }
-        val childTableFCIsForParentSelect = childTableFCIs.map { fci =>
-          val base = s"$temporaryTableName.${fci.nowColumnName}"
-          if (joinDefinition._1toNRelation)
-            FullColumnInfo(s"GROUP_CONCAT($base)", fci.nowColumnName + "s", fci.originalColumn)
-          else
-            FullColumnInfo(base, fci.nowColumnName, fci.originalColumn)
-        }
-        parentTableFCIs ++ childTableFCIsForParentSelect
-      }
 
       val parentSide = joinDefinition.columnOfParentTable.toSql
-      val childSide = temporaryTableName + "." + childTable.name + "__" +
-        joinDefinition.columnOfChildTable.name
 
-      val postfix = if (joinDefinition._1toNRelation) s" GROUP BY $parentSide" else ""
-      (s"SELECT ${FCIsForParentSelect.getSelectSqlBody} FROM ${parentTable.name} JOIN $nestedTableSql " +
-        s"ON $parentSide = $childSide$postfix", FCIsForParentSelect)
+      if (tableTree.lines.head.dot.lines.isEmpty) {
+
+        val FCIsForParentSelect = {
+          val parentTableFCIs = parentTable.columns.map { column => new FullColumnInfo(column) }
+          val childTableFCIsForParentSelect = childTable.columns.map { fci =>
+            val base = s"${childTable.name}.${fci.name}"
+            if (joinDefinition._1toNRelation)
+              FullColumnInfo(s"GROUP_CONCAT($base)", s"${childTable.name}__${fci.name}s", fci)
+            else
+              FullColumnInfo(base, s"${childTable.name}__${fci.name}", fci)
+          }
+          parentTableFCIs ++ childTableFCIsForParentSelect
+        }
+
+        val childSide = childTable.name + "." + joinDefinition.columnOfChildTable.name
+
+        val postfix = if (joinDefinition._1toNRelation) s" GROUP BY $parentSide" else ""
+        (s"SELECT ${FCIsForParentSelect.getSelectSqlBody} FROM ${parentTable.name} JOIN ${childTable.name} " +
+          s"ON $parentSide = $childSide$postfix", FCIsForParentSelect)
+      } else {
+        val temporaryTableName = "A"
+
+        // 子テーブル系の処理
+        val (sql, childTableFCIs) = toSql(tableTree.lines.head.dot)
+        val nestedTableSql = "( " + sql + " ) AS " + temporaryTableName
+
+        // 親テーブルのためのFCIsの算出
+        val FCIsForParentSelect = {
+          val parentTableFCIs = parentTable.columns.map { column => new FullColumnInfo(column) }
+          val childTableFCIsForParentSelect = childTableFCIs.map { fci =>
+            val base = s"$temporaryTableName.${fci.nowColumnName}"
+            if (joinDefinition._1toNRelation)
+              FullColumnInfo(s"GROUP_CONCAT($base)", fci.nowColumnName + "s", fci.originalColumn)
+            else
+              FullColumnInfo(base, fci.nowColumnName, fci.originalColumn)
+          }
+          parentTableFCIs ++ childTableFCIsForParentSelect
+        }
+
+        val childSide = temporaryTableName + "." + childTable.name + "__" +
+          joinDefinition.columnOfChildTable.name
+
+        val postfix = if (joinDefinition._1toNRelation) s" GROUP BY $parentSide" else ""
+        (s"SELECT ${FCIsForParentSelect.getSelectSqlBody} FROM ${parentTable.name} JOIN $nestedTableSql " +
+          s"ON $parentSide = $childSide$postfix", FCIsForParentSelect)
+      }
     }
   }
 }
