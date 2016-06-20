@@ -33,6 +33,9 @@ package object table {
       s"${column.table.name}__${column.name}", column)
 
     val toColumnDefinition = s"$columnExpression AS $nowColumnName"
+
+    def bindUp: FullColumnInfo = FullColumnInfo(s"GROUP_CONCAT(${this.columnExpression})",
+      this.nowColumnName + "s", this.originalColumn)
   }
 
   private def tableToSqlPlusColumnInfo(table: Table): (String, Set[FullColumnInfo]) = {
@@ -53,15 +56,14 @@ package object table {
       val parentSide = joinDefinition.columnOfParentTable.toSql
 
       if (tableTree.lines.head.dot.lines.isEmpty) {
-
         val FCIsForParentSelect = {
           val parentTableFCIs = parentTable.columns.map { column => new FullColumnInfo(column) }
-          val childTableFCIsForParentSelect = childTable.columns.map { fci =>
-            val base = s"${childTable.name}.${fci.name}"
+          val childTableFCIsForParentSelect = childTable.columns.map { column =>
+            val base = FullColumnInfo(column.toSql, s"${column.table.name}__${column.name}", column)
             if (joinDefinition._1toNRelation)
-              FullColumnInfo(s"GROUP_CONCAT($base)", s"${childTable.name}__${fci.name}s", fci)
+              base.bindUp
             else
-              FullColumnInfo(base, s"${childTable.name}__${fci.name}", fci)
+              base
           }
           parentTableFCIs ++ childTableFCIsForParentSelect
         }
@@ -82,11 +84,11 @@ package object table {
         val FCIsForParentSelect = {
           val parentTableFCIs = parentTable.columns.map { column => new FullColumnInfo(column) }
           val childTableFCIsForParentSelect = childTableFCIs.map { fci =>
-            val base = s"$temporaryTableName.${fci.nowColumnName}"
+            val base = FullColumnInfo(s"$temporaryTableName.${fci.nowColumnName}", fci.nowColumnName, fci.originalColumn)
             if (joinDefinition._1toNRelation)
-              FullColumnInfo(s"GROUP_CONCAT($base)", fci.nowColumnName + "s", fci.originalColumn)
+              base.bindUp
             else
-              FullColumnInfo(base, fci.nowColumnName, fci.originalColumn)
+              base
           }
           parentTableFCIs ++ childTableFCIsForParentSelect
         }
