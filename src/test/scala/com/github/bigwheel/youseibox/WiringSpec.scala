@@ -99,6 +99,16 @@ class WiringSpec extends FunSpec with Matchers {
   val musicTable = new Table("music", "id", "artist_id", "name")
   val contentTable = new Table("content", "id", "music_id", "name")
 
+  it("1テーブルのSQLが出力できる") {
+    val tableStructure = Dot[Table, JoinDefinition](artistTable)
+    table.toSql(tableStructure)._1 should
+      equal(
+        """SELECT
+          | artist.id AS artist__id,
+          | artist.name AS artist__name
+          | FROM artist""".stripMargin.split("\n").map(_.trim).mkString(" "))
+  }
+
   it("1対1の関係のJOINができる") {
     val tableStructure = Dot[Table, JoinDefinition](
       artistTable,
