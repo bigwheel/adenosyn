@@ -28,14 +28,16 @@ package object table {
     }
   }
 
-  case class FullColumnInfo(columnExpression: String, nowColumnName: String, originalColumn: Column) {
-    def this(column: Column) = this(s"${column.table.name}.${column.name}",
-      s"${column.table.name}__${column.name}", column)
+  class FullColumnInfo(val columnExpression: String, val nowColumnName: String, val originalColumn: Column) {
+    def this(column: Column) = this(s"${column.toSql}", s"${column.table.name}__${column.name}", column)
 
     val toColumnDefinition = s"$columnExpression AS $nowColumnName"
 
-    def bindUp: FullColumnInfo = FullColumnInfo(s"GROUP_CONCAT(${this.columnExpression})",
+    def bindUp: FullColumnInfo = new FullColumnInfo(s"GROUP_CONCAT(${this.columnExpression})",
       this.nowColumnName + "s", this.originalColumn)
+
+    def updateTableName(newTableName: String): FullColumnInfo =
+      new FullColumnInfo(s"$newTableName.${this.nowColumnName}", this.nowColumnName, this.originalColumn)
   }
 
   private def tableToSqlPlusColumnInfo(table: Table): (String, Set[FullColumnInfo]) = {
@@ -57,13 +59,12 @@ package object table {
 
       if (tableTree.lines.head.dot.lines.isEmpty) {
         val FCIsForParentSelect = {
-          val parentTableFCIs = parentTable.columns.map { column => new FullColumnInfo(column) }
-          val childTableFCIsForParentSelect = childTable.columns.map { column =>
-            val base = FullColumnInfo(column.toSql, s"${column.table.name}__${column.name}", column)
+          val parentTableFCIs = parentTable.columns.map(new FullColumnInfo(_))
+          val childTableFCIsForParentSelect = childTable.columns.map(new FullColumnInfo(_)).map { fci =>
             if (joinDefinition._1toNRelation)
-              base.bindUp
+              fci.bindUp
             else
-              base
+              fci
           }
           parentTableFCIs ++ childTableFCIsForParentSelect
         }
@@ -82,13 +83,12 @@ package object table {
 
         // 親テーブルのためのFCIsの算出
         val FCIsForParentSelect = {
-          val parentTableFCIs = parentTable.columns.map { column => new FullColumnInfo(column) }
-          val childTableFCIsForParentSelect = childTableFCIs.map { fci =>
-            val base = FullColumnInfo(s"$temporaryTableName.${fci.nowColumnName}", fci.nowColumnName, fci.originalColumn)
+          val parentTableFCIs = parentTable.columns.map(new FullColumnInfo(_))
+          val childTableFCIsForParentSelect = childTableFCIs.map(_.updateTableName(temporaryTableName)).map { fci =>
             if (joinDefinition._1toNRelation)
-              base.bindUp
+              fci.bindUp
             else
-              base
+              fci
           }
           parentTableFCIs ++ childTableFCIsForParentSelect
         }
