@@ -47,10 +47,20 @@ package object table {
   }
 
   def toSqlFromDot(dot: Dot[Table, JoinDefinition]): (String, Set[FullColumnInfo]) = {
-    val children = dot.lines.map(toSqlFromLine)
+    val table = dot.value
+    val fcis = table.columns.map { new FullColumnInfo(_) }
+    val sql = s"SELECT ${fcis.getSelectSqlBody} FROM ${table.name}"
+
+    val children = dot.lines.map { toSqlFromLine(_, "A") }
+    val allFcis = fcis ++ children.flatMap(_._2)
+    null
   }
-  def toSqlFromLine(line: Line[JoinDefinition, Table]): (String, Set[FullColumnInfo]) = {
-    val child = toSqlFromDot(line.dot)
+  def toSqlFromLine(line: Line[JoinDefinition, Table], parentTableName: String):
+  (String, Set[FullColumnInfo]) = {
+    val joinDefinition = line.value
+    val (sql, fcis) = toSqlFromDot(line.dot)
+    val s"JOIN ( $sql ) AS A ON $parentTableName.${joinDefinition.columnOfParentTable.name}"
+    null
   }
 
   // 返り値2つ目はカラム名とそのオリジナルのテーブル名・カラム名
