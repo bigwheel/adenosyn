@@ -46,6 +46,13 @@ package object table {
     (s"SELECT ${fullColumnInfoSet.getSelectSqlBody} FROM ${table.name}", fullColumnInfoSet)
   }
 
+  def toSqlFromDot(dot: Dot[Table, JoinDefinition]): (String, Set[FullColumnInfo]) = {
+    val children = dot.lines.map(toSqlFromLine)
+  }
+  def toSqlFromLine(line: Line[JoinDefinition, Table]): (String, Set[FullColumnInfo]) = {
+    val child = toSqlFromDot(line.dot)
+  }
+
   // 返り値2つ目はカラム名とそのオリジナルのテーブル名・カラム名
   def toSql(tableTree: Dot[Table, JoinDefinition]): (String, Set[FullColumnInfo]) = {
     if (tableTree.lines.isEmpty) {
