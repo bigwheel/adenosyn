@@ -138,7 +138,7 @@ class WiringSpec extends FunSpec with Matchers {
       "artist__id" -> 1,
       "artist__name" -> "水樹奈々",
       "music__ids" -> "11,12",
-      "music__artist_ids" -> "1,1",
+      "music__artist_id" -> 1,
       "music__names" -> "深愛,innocent starter"
     )))
   }
@@ -162,10 +162,10 @@ class WiringSpec extends FunSpec with Matchers {
       "artist__id" -> 1,
       "artist__name" -> "水樹奈々",
       "music__ids" -> "11,12",
-      "music__artist_ids" -> "1,1",
+      "music__artist_id" -> 1,
       "music__names" -> "深愛,innocent starter",
       "content__idss" -> "111,112,121",
-      "content__music_idss" -> "11,11,12",
+      "content__music_ids" -> "11,12",
       "content__namess" -> "深愛 - ショートVer.,深愛 - ロングVer.,innocent starter(inst)"
     )))
   }

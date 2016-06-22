@@ -24,9 +24,12 @@ package object table {
     columnOfChildTable: Column) {
     def toSql(newChildTableName: String) = {
       val newChildColumnName = new FullColumnInfo(columnOfChildTable).nowColumnName
-      val postfix = if (_1toNRelation) s" GROUP BY ${columnOfParentTable.toSql}" else ""
-      s"ON ${columnOfParentTable.toSql} = $newChildTableName.$newChildColumnName$postfix"
+      s"ON ${columnOfParentTable.toSql} = $newChildTableName.$newChildColumnName"
     }
+    def groupedBy(newTableName: String) = if (_1toNRelation)
+      s" GROUP BY ${new FullColumnInfo(columnOfChildTable).updateTableName(newTableName).nowColumnName}"
+    else
+      ""
   }
 
   type DotTable = Dot[Table, JoinDefinition]
@@ -72,12 +75,19 @@ package object table {
   private def toSqlFromLine(line: LineJoinDefinition, newChildTableName: String):
   (String, Set[FullColumnInfo]) = {
     val joinDefinition = line.value
-    val (sql, fcis) = toSqlFromDot(line.dot)
-    val newFcis = fcis.map(_.updateTableName(newChildTableName))
-    // TODO: ここ、join対象のカラムはgroup_concatしないように改良するべきか？
-    // join元があるしそこまでする必要がない気もする
-    val newNewFcis = if (joinDefinition._1toNRelation) newFcis.map(_.bindUp) else newFcis
-    (s"JOIN ( $sql ) AS $newChildTableName ${joinDefinition.toSql(newChildTableName)}", newNewFcis)
+    val (sql, oldFcis) = toSqlFromDot(line.dot)
+    val fcis = oldFcis.map(_.updateTableName("A"))
+    val newFcis = if (joinDefinition._1toNRelation) {
+      fcis.map { fci =>
+        if (fci.originalColumn == joinDefinition.columnOfChildTable)
+          fci
+        else
+          fci.bindUp
+      }
+    } else fcis
+    val newNewFcis = newFcis.map(_.updateTableName(newChildTableName))
+    val shallowNestSql = s"SELECT ${newFcis.getSelectSqlBody} FROM ( $sql ) AS A ${joinDefinition.groupedBy("A")}"
+    (s"JOIN ( $shallowNestSql ) AS $newChildTableName ${joinDefinition.toSql(newChildTableName)}", newNewFcis)
   }
 
 }
