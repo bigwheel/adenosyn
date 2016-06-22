@@ -170,23 +170,42 @@ class WiringSpec extends FunSpec with Matchers {
     )))
   }
 
-  def toTableStructure(jsValue: JsValue): DotTable = jsValue match {
-    case JsObject(Some(dots), _) => dots
+  /**
+    * group by 式が末尾に来ないという問題が発生して最後のテストが失敗しているが、ことはそう簡単じゃない
+    * 一つのtableに対する複数のjoinはgroup byで集約されるカラムが統一されている必要がある、ということだ
+    * ただこれ実用的なのか？別々のidに対してjoinすることはままあるし、その小テーブルの方をarrrayとして
+    * 集約したいケースもママあるはず。実際にそのようなSQLを書いてそれが現実的に必要なのか（多分必要）
+    * 必要であればどのような解決策があるかを検討する（たぶんjoinのステージを多段的にすればいける？)
+   */
+  def toTableStructure(jsValue: JsValue): DotTable = {
+    def a(jsValue: JsValue): Option[LineJoinDefinition] = jsValue match {
+      case JsObject(Some(line), b) =>
+        val c = b.values.flatMap(a)
+        val d: Seq[LineJoinDefinition] = line.dot.lines
+        val e = (c ++ d).toSeq
+        LineJoinDefinition(line.value, DotTable(line.dot.value, e: _*)).some
+      case JsArray(Some(line), b) =>
+        val c = a(b).toSeq
+        val d: Seq[LineJoinDefinition] = line.dot.lines
+        val e = c ++ d
+        LineJoinDefinition(line.value, DotTable(line.dot.value, e: _*)).some
+      case _ => None
+    }
+    a(jsValue).get.dot
   }
 
   def toJsonObj(sqlResult: List[Map[String, Any]], jsonStructure: JsValue): List[Json] = {
     def f(row: Map[String, Any], jsonTree: JsValue): Json = jsonTree match {
       case JsObject(_, properties) =>
-        val c = properties.map { case (k, v) => k := f(row, v) }
-        Json(c.toSeq: _*)
+        Json(properties.map { case (k, v) => k := f(row, v) }.toSeq: _*)
       case JsString(tableName, columnName) =>
         jString(row(tableName + "__" + columnName).asInstanceOf[String])
       case JsInt(tableName, columnName) =>
         jNumber(row(tableName + "__" + columnName).asInstanceOf[Int])
-      case JsArray(JsString(tableName, columnName)) =>
+      case JsArray(_, JsString(tableName, columnName)) =>
         val a = row(tableName + "__" + columnName + "s").asInstanceOf[String].split(",")
         Json.array(a.map(jString.apply): _*)
-      case JsArray(JsInt(tableName, columnName)) =>
+      case JsArray(_, JsInt(tableName, columnName)) =>
         val a = row(tableName + "__" + columnName + "s").asInstanceOf[String].split(",")
         Json.array(a.map(_.asInstanceOf[Int]).map(jNumber): _*)
     }
@@ -199,7 +218,7 @@ class WiringSpec extends FunSpec with Matchers {
     TestCase(
       "最も単純なjsonオブジェクトを組み立てられる",
       JsObject(
-        DotTable(artistTable).some,
+        LineJoinDefinition(null, DotTable(artistTable)).some,
         Map[String, JsValue](
           "name" -> JsString("artist", "name")
         )
@@ -209,7 +228,7 @@ class WiringSpec extends FunSpec with Matchers {
     TestCase(
       "複数プロパティのjsonオブジェクトを組み立てられる",
       JsObject(
-        DotTable(artistTable).some,
+        LineJoinDefinition(null, DotTable(artistTable)).some,
         Map[String, JsValue](
           "id" -> JsInt("artist", "id"),
           "name" -> JsString("artist", "name")
@@ -220,11 +239,14 @@ class WiringSpec extends FunSpec with Matchers {
     TestCase(
       "単純チェインのテーブルJOINでjsonオブジェクトを組み立てられる",
       JsObject(
-        DotTable(
-          artistTable,
-          LineJoinDefinition(
-            JoinDefinition(artistTable.getColumn("id"), false, artistKanaTable.getColumn("artist_id")),
-            DotTable(artistKanaTable)
+        LineJoinDefinition(
+          null,
+          DotTable(
+            artistTable,
+            LineJoinDefinition(
+              JoinDefinition(artistTable.getColumn("id"), false, artistKanaTable.getColumn("artist_id")),
+              DotTable(artistKanaTable)
+            )
           )
         ).some,
         Map[String, JsValue](
@@ -237,7 +259,7 @@ class WiringSpec extends FunSpec with Matchers {
     TestCase(
       "単純にjsonオブジェクトがネストしていても組み立てられる",
       JsObject(
-        DotTable(artistTable).some,
+        LineJoinDefinition(null, DotTable(artistTable)).some,
         Map[String, JsValue](
           "name" -> JsString("artist", "name"),
           "nest" -> JsObject(
@@ -256,21 +278,26 @@ class WiringSpec extends FunSpec with Matchers {
     TestCase(
       "ネストと直列JOINが両方あっても組み立てられる",
       JsObject(
-        DotTable(
-          artistTable,
-          LineJoinDefinition(
-            JoinDefinition(artistTable.getColumn("id"), false, artistKanaTable.getColumn("artist_id")),
-            DotTable(artistKanaTable)
-          ),
-          LineJoinDefinition( // TODO ここ、本来は下のJsArrayのところにあるべきなので移す
-            JoinDefinition(artistTable.getColumn("id"), true, musicTable.getColumn("artist_id")),
-            DotTable(musicTable)
+        LineJoinDefinition(
+          null,
+          DotTable(
+            artistTable,
+            LineJoinDefinition(
+              JoinDefinition(artistTable.getColumn("id"), false, artistKanaTable.getColumn("artist_id")),
+              DotTable(artistKanaTable)
+            )
           )
         ).some,
         Map[String, JsValue](
           "name" -> JsString("artist", "name"),
           "kana" -> JsString("artist_kana", "kana"),
-          "musics" -> JsArray(JsString("music", "name"))
+          "musics" -> JsArray(
+            LineJoinDefinition(
+              JoinDefinition(artistTable.getColumn("id"), true, musicTable.getColumn("artist_id")),
+              DotTable(musicTable)
+            ).some,
+            JsString("music", "name")
+          )
         )
       ),
       List(Json(

@@ -39,6 +39,8 @@ package object table {
   object LineJoinDefinition {
     def apply(value: JoinDefinition, dot: DotTable): LineJoinDefinition =
       Line.apply[JoinDefinition, Table](value, dot)
+    def unapply(arg: LineJoinDefinition): Option[(JoinDefinition, DotTable)] =
+      Line.unapply[JoinDefinition, Table](arg)
   }
 
   object FullColumnInfo {
