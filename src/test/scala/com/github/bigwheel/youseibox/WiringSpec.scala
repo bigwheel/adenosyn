@@ -135,16 +135,16 @@ class WiringSpec extends FunSpec with Matchers {
     )
     val sqlResult = SQL(table.toSqlFromDot(tableTree)._1).map(_.toMap).list.apply()
     sqlResult should equal(List(Map(
-      "music__ids" -> "11,12",
-      "music__names" -> "深愛,innocent starter",
-      "music__artist_ids" -> "1,1",
+      "artist__id" -> 1,
       "artist__name" -> "水樹奈々",
-      "artist__id" -> 1
+      "music__ids" -> "11,12",
+      "music__artist_ids" -> "1,1",
+      "music__names" -> "深愛,innocent starter"
     )))
   }
 
   it("1対Nの関係をネストしてもJOINができる") {
-    val tableStructure = Dot[Table, JoinDefinition](
+    val tableTree = Dot[Table, JoinDefinition](
       artistTable,
       Line[JoinDefinition, Table](
         JoinDefinition(artistTable.getColumn("id"), true, musicTable.getColumn("artist_id")),
@@ -157,30 +157,17 @@ class WiringSpec extends FunSpec with Matchers {
         )
       )
     )
-    table.toSql(tableStructure)._1 should
-      equal("""SELECT
-              | GROUP_CONCAT(A.content__music_ids) AS content__music_idss,
-              | GROUP_CONCAT(A.music__name) AS music__names,
-              | artist.name AS artist__name,
-              | GROUP_CONCAT(A.content__names) AS content__namess,
-              | GROUP_CONCAT(A.music__artist_id) AS music__artist_ids,
-              | artist.id AS artist__id,
-              | GROUP_CONCAT(A.music__id) AS music__ids,
-              | GROUP_CONCAT(A.content__ids) AS content__idss
-              | FROM artist JOIN
-              | (
-              |   SELECT
-              |     music.id AS music__id,
-              |     music.artist_id AS music__artist_id,
-              |     music.name AS music__name,
-              |     GROUP_CONCAT(content.music_id) AS content__music_ids,
-              |     GROUP_CONCAT(content.name) AS content__names,
-              |     GROUP_CONCAT(content.id) AS content__ids
-              |   FROM music JOIN content
-              |   ON music.id = content.music_id GROUP BY music.id
-              | ) AS A
-              | ON artist.id = A.music__artist_id GROUP BY artist.id""".
-        stripMargin.split("\n").map(_.trim).mkString(" "))
+    val sqlResult = SQL(table.toSqlFromDot(tableTree)._1).map(_.toMap).list.apply()
+    sqlResult should equal(List(Map(
+      "artist__id" -> 1,
+      "artist__name" -> "水樹奈々",
+      "music__ids" -> "11,12",
+      "music__artist_ids" -> "1,1",
+      "music__names" -> "深愛,innocent starter",
+      "content__idss" -> "111,112,121",
+      "content__music_idss" -> "11,11,12",
+      "content__namess" -> "深愛 - ショートVer.,深愛 - ロングVer.,innocent starter(inst)"
+    )))
   }
 
   def toTableStructure(jsValue: JsValue): Dot[Table, JoinDefinition] = jsValue match {
@@ -270,8 +257,8 @@ class WiringSpec extends FunSpec with Matchers {
 
   for (test <- tests) {
     it(test.title) {
-      val tableStructure: Dot[Table, JoinDefinition] = toTableStructure(test.input)
-      val sqlResult = SQL(table.toSql(tableStructure)._1).map(_.toMap).list.apply()
+      val tableTree: Dot[Table, JoinDefinition] = toTableStructure(test.input)
+      val sqlResult = SQL(table.toSqlFromDot(tableTree)._1).map(_.toMap).list.apply()
       def sqlResultToJson: List[Json] = toJsonObj(sqlResult, test.input)
       sqlResultToJson should equal(test.expected)
     }
