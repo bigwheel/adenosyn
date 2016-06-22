@@ -29,6 +29,18 @@ package object table {
     }
   }
 
+  type DotTable = Dot[Table, JoinDefinition]
+  type LineJoinDefinition = Line[JoinDefinition, Table]
+  // typeではcompanion objectのエイリアスは作られないらしい。しょうがないから手作り
+  object DotTable {
+    def apply(value: Table, lines: LineJoinDefinition*): DotTable =
+      Dot.apply[Table, JoinDefinition](value, lines: _*)
+  }
+  object LineJoinDefinition {
+    def apply(value: JoinDefinition, dot: DotTable): LineJoinDefinition =
+      Line.apply[JoinDefinition, Table](value, dot)
+  }
+
   object FullColumnInfo {
     implicit class RichFullColumnInfoSet(fciSet: Set[FullColumnInfo]) {
       def getSelectSqlBody: String = fciSet.map(_.toColumnDefinition).mkString(", ")
@@ -47,7 +59,7 @@ package object table {
       new FullColumnInfo(s"$newTableName.${this.nowColumnName}", this.nowColumnName, this.originalColumn)
   }
 
-  def toSqlFromDot(dot: Dot[Table, JoinDefinition]): (String, Set[FullColumnInfo]) = {
+  def toSqlFromDot(dot: DotTable): (String, Set[FullColumnInfo]) = {
     val table = dot.value
     val children = dot.lines.zipWithIndex.map { case (line, i) => toSqlFromLine(line, s"_$i") }
     val allFcis = table.columns.map { new FullColumnInfo(_) } ++ children.flatMap(_._2)
@@ -55,7 +67,7 @@ package object table {
 
     ((sql +: children.map(_._1)).mkString(" "), allFcis)
   }
-  private def toSqlFromLine(line: Line[JoinDefinition, Table], newChildTableName: String):
+  private def toSqlFromLine(line: LineJoinDefinition, newChildTableName: String):
   (String, Set[FullColumnInfo]) = {
     val joinDefinition = line.value
     val (sql, fcis) = toSqlFromDot(line.dot)
