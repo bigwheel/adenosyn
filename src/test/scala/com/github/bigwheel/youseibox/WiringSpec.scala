@@ -100,54 +100,47 @@ class WiringSpec extends FunSpec with Matchers {
   val contentTable = new Table("content", "id", "music_id", "name")
 
   it("1テーブルのSQLが出力できる") {
-    val tableStructure = Dot[Table, JoinDefinition](artistTable)
-    //table.toSql(tableStructure)._1 should
-    table.toSqlFromDot(tableStructure)._1 should
-      equal(
-        """SELECT
-          | artist.id AS artist__id,
-          | artist.name AS artist__name
-          | FROM artist""".stripMargin.split("\n").map(_.trim).mkString(" "))
+    val tableTree = Dot[Table, JoinDefinition](artistTable)
+    val sqlResult = SQL(table.toSqlFromDot(tableTree)._1).map(_.toMap).list.apply()
+    sqlResult should equal(List(Map(
+      "artist__id" -> 1,
+      "artist__name" -> "水樹奈々"
+    )))
   }
 
   it("1対1の関係のJOINができる") {
-    val tableStructure = Dot[Table, JoinDefinition](
+    val tableTree = Dot[Table, JoinDefinition](
       artistTable,
       Line[JoinDefinition, Table](
         JoinDefinition(artistTable.getColumn("id"), false, artistKanaTable.getColumn("artist_id")),
         Dot[Table, JoinDefinition](artistKanaTable)
       )
     )
-    table.toSql(tableStructure)._1 should
-      equal(
-        """SELECT
-          | artist.id AS artist__id,
-          | artist.name AS artist__name,
-          | artist_kana.artist_id AS artist_kana__artist_id,
-          | artist_kana.kana AS artist_kana__kana
-          | FROM artist JOIN artist_kana
-          | ON artist.id = artist_kana.artist_id""".stripMargin.split("\n").map(_.trim).mkString(" "))
+    val sqlResult = SQL(table.toSqlFromDot(tableTree)._1).map(_.toMap).list.apply()
+    sqlResult should equal(List(Map(
+      "artist__id" -> 1,
+      "artist__name" -> "水樹奈々",
+      "artist_kana__artist_id" -> 1,
+      "artist_kana__kana" -> "みずきなな"
+    )))
   }
 
   it("1対Nの関係のJOINができる") {
-    val tableStructure = Dot[Table, JoinDefinition](
+    val tableTree = Dot[Table, JoinDefinition](
       artistTable,
       Line[JoinDefinition, Table](
         JoinDefinition(artistTable.getColumn("id"), true, musicTable.getColumn("artist_id")),
         Dot[Table, JoinDefinition](musicTable)
       )
     )
-    table.toSql(tableStructure)._1 should
-      equal(
-        """SELECT
-          | GROUP_CONCAT(music.name) AS music__names,
-          | GROUP_CONCAT(music.artist_id) AS music__artist_ids,
-          | GROUP_CONCAT(music.id) AS music__ids,
-          | artist.name AS artist__name,
-          | artist.id AS artist__id
-          | FROM artist JOIN music
-          | ON artist.id = music.artist_id
-          | GROUP BY artist.id""".stripMargin.split("\n").map(_.trim).mkString(" "))
+    val sqlResult = SQL(table.toSqlFromDot(tableTree)._1).map(_.toMap).list.apply()
+    sqlResult should equal(List(Map(
+      "music__ids" -> "11,12",
+      "music__names" -> "深愛,innocent starter",
+      "music__artist_ids" -> "1,1",
+      "artist__name" -> "水樹奈々",
+      "artist__id" -> 1
+    )))
   }
 
   it("1対Nの関係をネストしてもJOINができる") {

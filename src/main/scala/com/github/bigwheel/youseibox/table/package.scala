@@ -57,18 +57,21 @@ package object table {
 
   def toSqlFromDot(dot: Dot[Table, JoinDefinition]): (String, Set[FullColumnInfo]) = {
     val table = dot.value
-    val fcis = table.columns.map { new FullColumnInfo(_) }
-    val sql = s"SELECT ${fcis.getSelectSqlBody} FROM ${table.name}"
-
     val children = dot.lines.map { toSqlFromLine(_, "A") }
-    val allFcis = fcis ++ children.flatMap(_._2)
-    (sql + " " + children.map(_._1).mkString(" "), allFcis)
+    val allFcis = table.columns.map { new FullColumnInfo(_) } ++ children.flatMap(_._2)
+    val sql = s"SELECT ${allFcis.getSelectSqlBody} FROM ${table.name}"
+
+    ((sql +: children.map(_._1)).mkString(" "), allFcis)
   }
   def toSqlFromLine(line: Line[JoinDefinition, Table], newChildTableName: String):
   (String, Set[FullColumnInfo]) = {
     val joinDefinition = line.value
     val (sql, fcis) = toSqlFromDot(line.dot)
-    (s"JOIN ( $sql ) AS $newChildTableName ${joinDefinition.toSql(newChildTableName)}", fcis)
+    val newFcis = fcis.map(_.updateTableName(newChildTableName))
+    // TODO: ここ、join対象のカラムはgroup_concatしないように改良するべきか？
+    // join元があるしそこまでする必要がない気もする
+    val newNewFcis = if (joinDefinition._1toNRelation) newFcis.map(_.bindUp) else newFcis
+    (s"JOIN ( $sql ) AS $newChildTableName ${joinDefinition.toSql(newChildTableName)}", newNewFcis)
   }
 
   // 返り値2つ目はカラム名とそのオリジナルのテーブル名・カラム名
