@@ -5,9 +5,6 @@ import Scalaz._
 
 package object table {
 
-  case class ChainedTable(name: String, columnOfParentTable: String, columnOfChainedTable: String)
-  case class _1toNTable(name: String, columnOfParentTable: String, columnOfChainedTable: String)
-
   case class Dot[D, L](value: D, lines: Line[L, D]*)
   case class Line[L, D](value: L, dot: Dot[D, L])
 
@@ -20,6 +17,7 @@ package object table {
   class Column(val name: String, val table: Table) {
     def toSql = table.name + "." + name
   }
+
   case class JoinDefinition(
     columnOfParentTable: Column,
     _1toNRelation: Boolean,
@@ -49,12 +47,6 @@ package object table {
       new FullColumnInfo(s"$newTableName.${this.nowColumnName}", this.nowColumnName, this.originalColumn)
   }
 
-  private def tableToSqlPlusColumnInfo(table: Table): (String, Set[FullColumnInfo]) = {
-    val fullColumnInfoSet = for (column <- table.columns) yield new FullColumnInfo(column)
-
-    (s"SELECT ${fullColumnInfoSet.getSelectSqlBody} FROM ${table.name}", fullColumnInfoSet)
-  }
-
   def toSqlFromDot(dot: Dot[Table, JoinDefinition]): (String, Set[FullColumnInfo]) = {
     val table = dot.value
     val children = dot.lines.map { toSqlFromLine(_, "A") }
@@ -63,7 +55,7 @@ package object table {
 
     ((sql +: children.map(_._1)).mkString(" "), allFcis)
   }
-  def toSqlFromLine(line: Line[JoinDefinition, Table], newChildTableName: String):
+  private def toSqlFromLine(line: Line[JoinDefinition, Table], newChildTableName: String):
   (String, Set[FullColumnInfo]) = {
     val joinDefinition = line.value
     val (sql, fcis) = toSqlFromDot(line.dot)
@@ -74,60 +66,4 @@ package object table {
     (s"JOIN ( $sql ) AS $newChildTableName ${joinDefinition.toSql(newChildTableName)}", newNewFcis)
   }
 
-  // 返り値2つ目はカラム名とそのオリジナルのテーブル名・カラム名
-  def toSql(tableTree: Dot[Table, JoinDefinition]): (String, Set[FullColumnInfo]) = {
-    if (tableTree.lines.isEmpty) {
-      tableToSqlPlusColumnInfo(tableTree.value)
-    } else {
-      val parentTable = tableTree.value
-      val joinDefinition = tableTree.lines.head.value
-      val childTable = tableTree.lines.head.dot.value
-
-      val parentSide = joinDefinition.columnOfParentTable.toSql
-
-      if (tableTree.lines.head.dot.lines.isEmpty) {
-        val FCIsForParentSelect = {
-          val parentTableFCIs = parentTable.columns.map(new FullColumnInfo(_))
-          val childTableFCIsForParentSelect = childTable.columns.map(new FullColumnInfo(_)).map { fci =>
-            if (joinDefinition._1toNRelation)
-              fci.bindUp
-            else
-              fci
-          }
-          parentTableFCIs ++ childTableFCIsForParentSelect
-        }
-
-        val childSide = childTable.name + "." + joinDefinition.columnOfChildTable.name
-
-        val postfix = if (joinDefinition._1toNRelation) s" GROUP BY $parentSide" else ""
-        (s"SELECT ${FCIsForParentSelect.getSelectSqlBody} FROM ${parentTable.name} JOIN ${childTable.name} " +
-          s"ON $parentSide = $childSide$postfix", FCIsForParentSelect)
-      } else {
-        val temporaryTableName = "A"
-
-        // 子テーブル系の処理
-        val (sql, childTableFCIs) = toSql(tableTree.lines.head.dot)
-        val nestedTableSql = "( " + sql + " ) AS " + temporaryTableName
-
-        // 親テーブルのためのFCIsの算出
-        val FCIsForParentSelect = {
-          val parentTableFCIs = parentTable.columns.map(new FullColumnInfo(_))
-          val childTableFCIsForParentSelect = childTableFCIs.map(_.updateTableName(temporaryTableName)).map { fci =>
-            if (joinDefinition._1toNRelation)
-              fci.bindUp
-            else
-              fci
-          }
-          parentTableFCIs ++ childTableFCIsForParentSelect
-        }
-
-        val childSide = temporaryTableName + "." + childTable.name + "__" +
-          joinDefinition.columnOfChildTable.name
-
-        val postfix = if (joinDefinition._1toNRelation) s" GROUP BY $parentSide" else ""
-        (s"SELECT ${FCIsForParentSelect.getSelectSqlBody} FROM ${parentTable.name} JOIN $nestedTableSql " +
-          s"ON $parentSide = $childSide$postfix", FCIsForParentSelect)
-      }
-    }
-  }
 }
