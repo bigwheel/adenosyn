@@ -20,7 +20,16 @@ package object table {
   class Column(val name: String, val table: Table) {
     def toSql = table.name + "." + name
   }
-  case class JoinDefinition(columnOfParentTable: Column, _1toNRelation: Boolean, columnOfChildTable: Column)
+  case class JoinDefinition(
+    columnOfParentTable: Column,
+    _1toNRelation: Boolean,
+    columnOfChildTable: Column) {
+    def toSql(newChildTableName: String) = {
+      val newChildColumnName = new FullColumnInfo(columnOfChildTable).nowColumnName
+      val postfix = if (_1toNRelation) s" GROUP BY ${columnOfParentTable.toSql}" else ""
+      s"ON ${columnOfParentTable.toSql} = $newChildTableName.$newChildColumnName$postfix"
+    }
+  }
 
   object FullColumnInfo {
     implicit class RichFullColumnInfoSet(fciSet: Set[FullColumnInfo]) {
@@ -53,14 +62,13 @@ package object table {
 
     val children = dot.lines.map { toSqlFromLine(_, "A") }
     val allFcis = fcis ++ children.flatMap(_._2)
-    null
+    (sql + " " + children.map(_._1).mkString(" "), allFcis)
   }
-  def toSqlFromLine(line: Line[JoinDefinition, Table], parentTableName: String):
+  def toSqlFromLine(line: Line[JoinDefinition, Table], newChildTableName: String):
   (String, Set[FullColumnInfo]) = {
     val joinDefinition = line.value
     val (sql, fcis) = toSqlFromDot(line.dot)
-    val s"JOIN ( $sql ) AS A ON $parentTableName.${joinDefinition.columnOfParentTable.name}"
-    null
+    (s"JOIN ( $sql ) AS $newChildTableName ${joinDefinition.toSql(newChildTableName)}", fcis)
   }
 
   // 返り値2つ目はカラム名とそのオリジナルのテーブル名・カラム名

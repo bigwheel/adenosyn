@@ -101,7 +101,8 @@ class WiringSpec extends FunSpec with Matchers {
 
   it("1テーブルのSQLが出力できる") {
     val tableStructure = Dot[Table, JoinDefinition](artistTable)
-    table.toSql(tableStructure)._1 should
+    //table.toSql(tableStructure)._1 should
+    table.toSqlFromDot(tableStructure)._1 should
       equal(
         """SELECT
           | artist.id AS artist__id,
