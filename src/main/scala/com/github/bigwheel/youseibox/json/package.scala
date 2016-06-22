@@ -16,4 +16,5 @@ package object json {
 
   case class JsString(tableName: String, columnName: String) extends JsValue
   case class JsInt(tableName: String, columnName: String) extends JsValue
+  case class JsArray(elem: JsValue) extends JsValue
 }

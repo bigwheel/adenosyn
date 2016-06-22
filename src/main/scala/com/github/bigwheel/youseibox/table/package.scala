@@ -49,7 +49,7 @@ package object table {
 
   def toSqlFromDot(dot: Dot[Table, JoinDefinition]): (String, Set[FullColumnInfo]) = {
     val table = dot.value
-    val children = dot.lines.map { toSqlFromLine(_, "A") }
+    val children = dot.lines.zipWithIndex.map { case (line, i) => toSqlFromLine(line, s"_$i") }
     val allFcis = table.columns.map { new FullColumnInfo(_) } ++ children.flatMap(_._2)
     val sql = s"SELECT ${allFcis.getSelectSqlBody} FROM ${table.name}"
 

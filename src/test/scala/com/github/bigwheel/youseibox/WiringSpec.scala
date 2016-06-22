@@ -175,20 +175,20 @@ class WiringSpec extends FunSpec with Matchers {
   }
 
   def toJsonObj(sqlResult: List[Map[String, Any]], jsonStructure: JsValue): List[Json] = {
-    def f(row: Map[String, Any], jsonStructure: JsValue): Json = jsonStructure match {
+    def f(row: Map[String, Any], jsonTree: JsValue): Json = jsonTree match {
       case JsObject(_, properties) =>
-        val c = properties.map { property =>
-          property._2 match {
-            case a: JsString =>
-              property._1 := row(a.tableName + "__" + a.columnName).asInstanceOf[String]
-            case a: JsInt =>
-              property._1 := row(a.tableName + "__" + a.columnName).asInstanceOf[Int]
-            case a: JsObject =>
-              property._1 := f(row, a)
-          }
-        }
+        val c = properties.map { case (k, v) => k := f(row, v) }
         Json(c.toSeq: _*)
-      case _ => ???
+      case JsString(tableName, columnName) =>
+        jString(row(tableName + "__" + columnName).asInstanceOf[String])
+      case JsInt(tableName, columnName) =>
+        jNumber(row(tableName + "__" + columnName).asInstanceOf[Int])
+      case JsArray(JsString(tableName, columnName)) =>
+        val a = row(tableName + "__" + columnName + "s").asInstanceOf[String].split(",")
+        Json.array(a.map(jString.apply): _*)
+      case JsArray(JsInt(tableName, columnName)) =>
+        val a = row(tableName + "__" + columnName + "s").asInstanceOf[String].split(",")
+        Json.array(a.map(_.asInstanceOf[Int]).map(jNumber): _*)
     }
 
     for (row <- sqlResult) yield f(row, jsonStructure)
@@ -251,6 +251,32 @@ class WiringSpec extends FunSpec with Matchers {
       List(Json(
         "name" := "水樹奈々",
         "nest" := Json("name" := "水樹奈々")
+      ))
+    ),
+    TestCase(
+      "ネストと直列JOINが両方あっても組み立てられる",
+      JsObject(
+        Dot[Table, JoinDefinition](
+          artistTable,
+          Line[JoinDefinition, Table](
+            JoinDefinition(artistTable.getColumn("id"), false, artistKanaTable.getColumn("artist_id")),
+            Dot[Table, JoinDefinition](artistKanaTable)
+          ),
+          Line[JoinDefinition, Table]( // TODO ここ、本来は下のJsArrayのところにあるべきなので移す
+            JoinDefinition(artistTable.getColumn("id"), true, musicTable.getColumn("artist_id")),
+            Dot[Table, JoinDefinition](musicTable)
+          )
+        ).some,
+        Map[String, JsValue](
+          "name" -> JsString("artist", "name"),
+          "kana" -> JsString("artist_kana", "kana"),
+          "musics" -> JsArray(JsString("music", "name"))
+        )
+      ),
+      List(Json(
+        "name" := "水樹奈々",
+        "kana" := "みずきなな",
+        "musics" := Json.array(jString("深愛"), jString("innocent starter"))
       ))
     )
   )
