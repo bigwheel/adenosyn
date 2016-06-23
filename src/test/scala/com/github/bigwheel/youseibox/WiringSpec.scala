@@ -170,13 +170,6 @@ class WiringSpec extends FunSpec with Matchers {
     )))
   }
 
-  /**
-    * group by 式が末尾に来ないという問題が発生して最後のテストが失敗しているが、ことはそう簡単じゃない
-    * 一つのtableに対する複数のjoinはgroup byで集約されるカラムが統一されている必要がある、ということだ
-    * ただこれ実用的なのか？別々のidに対してjoinすることはままあるし、その小テーブルの方をarrrayとして
-    * 集約したいケースもママあるはず。実際にそのようなSQLを書いてそれが現実的に必要なのか（多分必要）
-    * 必要であればどのような解決策があるかを検討する（たぶんjoinのステージを多段的にすればいける？)
-   */
   def toTableStructure(jsValue: JsValue): DotTable = {
     def a(jsValue: JsValue): Option[LineJoinDefinition] = jsValue match {
       case JsObject(Some(line), b) =>
@@ -304,6 +297,26 @@ class WiringSpec extends FunSpec with Matchers {
         "name" := "水樹奈々",
         "kana" := "みずきなな",
         "musics" := Json.array(jString("深愛"), jString("innocent starter"))
+      ))
+    ),
+    TestCase(
+      "ネスト内からネスト外のカラムを参照できる",
+      JsObject(
+        LineJoinDefinition(null, DotTable(artistTable)).some,
+        Map[String, JsValue](
+          "name" -> JsString("artist", "name"),
+          "musics" -> JsArray(
+            LineJoinDefinition(
+              JoinDefinition(artistTable.getColumn("id"), true, musicTable.getColumn("artist_id")),
+              DotTable(musicTable)
+            ).some,
+            JsInt("artist", "id")
+          )
+        )
+      ),
+      List(Json(
+        "name" := "水樹奈々",
+        "musics" := Json.array(jNumber(1), jNumber(1))
       ))
     )
   )
