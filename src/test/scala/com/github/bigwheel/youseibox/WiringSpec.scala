@@ -15,7 +15,7 @@ class WiringSpec extends FunSpec with Matchers {
 
   Class.forName("com.mysql.jdbc.Driver")
   ConnectionPool.singleton(
-    s"jdbc:mysql://$ipAddress/youseibox_test?characterEncoding=UTF-8", "youseibox", "youseibox")
+    s"jdbc:mysql://$ipAddress/youseibox_test?characterEncoding=UTF-8&useSSL=false", "youseibox", "youseibox")
   implicit val session = AutoSession
 
   def createFixtures() = {
