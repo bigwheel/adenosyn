@@ -1,7 +1,10 @@
 package com.github.bigwheel.youseibox
 
+import argonaut.Argonaut._
+import argonaut._
+import com.github.bigwheel.youseibox.json._
+import scalaz.Scalaz._
 import scalaz._
-import Scalaz._
 
 package object table {
 
@@ -88,6 +91,42 @@ package object table {
     val newNewFcis = newFcis.map(_.updateTableName(newChildTableName))
     val shallowNestSql = s"SELECT ${newFcis.getSelectSqlBody} FROM ( $sql ) AS A ${joinDefinition.groupedBy("A")}"
     (s"JOIN ( $shallowNestSql ) AS $newChildTableName ${joinDefinition.toSql(newChildTableName)}", newNewFcis)
+  }
+
+  def toTableStructure(jsValue: JsValue): DotTable = {
+    def a(jsValue: JsValue): Option[LineJoinDefinition] = jsValue match {
+      case JsObject(Some(line), b) =>
+        val c = b.values.flatMap(a)
+        val d: Seq[LineJoinDefinition] = line.dot.lines
+        val e = (c ++ d).toSeq
+        LineJoinDefinition(line.value, DotTable(line.dot.value, e: _*)).some
+      case JsArray(Some(line), b) =>
+        val c = a(b).toSeq
+        val d: Seq[LineJoinDefinition] = line.dot.lines
+        val e = c ++ d
+        LineJoinDefinition(line.value, DotTable(line.dot.value, e: _*)).some
+      case _ => None
+    }
+    a(jsValue).get.dot
+  }
+
+  def toJsonObj(sqlResult: List[Map[String, Any]], jsonStructure: JsValue): List[Json] = {
+    def f(row: Map[String, Any], jsonTree: JsValue): Json = jsonTree match {
+      case JsObject(_, properties) =>
+        Json(properties.map { case (k, v) => k := f(row, v) }.toSeq: _*)
+      case JsString(tableName, columnName) =>
+        jString(row(tableName + "__" + columnName).asInstanceOf[String])
+      case JsInt(tableName, columnName) =>
+        jNumber(row(tableName + "__" + columnName).asInstanceOf[Int])
+      case JsArray(_, JsString(tableName, columnName)) =>
+        val a = row(tableName + "__" + columnName + "s").asInstanceOf[String].split(",")
+        Json.array(a.map(jString.apply): _*)
+      case JsArray(_, JsInt(tableName, columnName)) =>
+        val a = row(tableName + "__" + columnName + "s").asInstanceOf[String].split(",")
+        Json.array(a.map(_.asInstanceOf[Int]).map(jNumber): _*)
+    }
+
+    for (row <- sqlResult) yield f(row, jsonStructure)
   }
 
 }
