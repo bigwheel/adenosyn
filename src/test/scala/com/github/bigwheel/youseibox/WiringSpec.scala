@@ -262,8 +262,8 @@ class WiringSpec extends FunSpec with Matchers {
         "kana" := "みずきなな",
         "musics" := Json.array(jString("深愛"), jString("innocent starter"))
       ))
-    ),
-    TestCase(
+    )
+    /*TestCase( // TODO: 派生ケースなので後回し
       "ネスト内からネスト外のカラムを参照できる",
       JsObject(
         LineJoinDefinition(null, DotTable(artistTable)).some,
@@ -282,15 +282,15 @@ class WiringSpec extends FunSpec with Matchers {
         "name" := "水樹奈々",
         "musics" := Json.array(jNumber(1), jNumber(1))
       ))
-    )
+    )*/
   )
 
   for (test <- tests) {
     it(test.title) {
       val tableTree: DotTable = toTableStructure(test.input)
       val sqlResult = SQL(table.toSqlFromDot(tableTree)._1).map(_.toMap).list.apply()
-      val parsedColumns = structureSqlResult(sqlResult)
-      def sqlResultToJson: List[Json] = toJsonObj(sqlResult, test.input)
+      val parsedColumnss = structureSqlResult(sqlResult)
+      def sqlResultToJson: List[Json] = toJsonObj(parsedColumnss, test.input)
       sqlResultToJson should equal(test.expected)
     }
   }

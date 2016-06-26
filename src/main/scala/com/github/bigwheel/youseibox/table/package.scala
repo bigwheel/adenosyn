@@ -122,12 +122,10 @@ package object table {
         val dim = result.group("dimention").count(_ == 's')
         val parsedValue = if (dim == 1) {
           // Any or Array[Any] or Array[Array[Any]] or ...
-          val tmpValue = value.asInstanceOf[String]
-          tmpValue.split(',').map { elem =>
-            result.group("type") match {
-              case "Int" => elem.toInt // 下と違って一度group_concatしているためstringからtoIntする必要がある
-              case "String" => elem // .asInstanceOf[String]
-            }
+          val splitted = value.asInstanceOf[String].split(',')
+          result.group("type") match {
+            case "Int" => splitted.map(_.toInt) // 下と違って一度group_concatしているためstringからtoIntする必要がある
+            case "String" => splitted // .asInstanceOf[String]
           }
         } else {
           result.group("type") match {
@@ -142,23 +140,29 @@ package object table {
     a.map(_.toList)
   }
 
-  def toJsonObj(sqlResult: List[Map[String, Any]], jsonStructure: JsValue): List[Json] = {
-    def f(row: Map[String, Any], jsonTree: JsValue): Json = jsonTree match {
-      case JsObject(_, properties) =>
-        Json(properties.map { case (k, v) => k := f(row, v) }.toSeq: _*)
-      case JsString(tableName, columnName) =>
-        jString(row(tableName + "__" + columnName + "__String").asInstanceOf[String])
-      case JsInt(tableName, columnName) =>
-        jNumber(row(tableName + "__" + columnName + "__Int").asInstanceOf[Int])
-      case JsArray(_, JsString(tableName, columnName)) =>
-        val a = row(tableName + "__" + columnName + "__Strings").asInstanceOf[String].split(",")
-        Json.array(a.map(jString.apply): _*)
-      case JsArray(_, JsInt(tableName, columnName)) =>
-        val a = row(tableName + "__" + columnName + "__Ints").asInstanceOf[String].split(",")
-        Json.array(a.map(_.asInstanceOf[Int]).map(jNumber): _*)
+  def toJsonObj(parsedColumnss: List[List[ParsedColumn]] , jsonStructure: JsValue): List[Json] = {
+    def f(row: List[ParsedColumn], jsonTree: JsValue): Json = {
+      def getColumn(tableName: String, columnName: String): ParsedColumn =
+        row.find(c => c.tableName == tableName && c.columnName == columnName).get
+
+      jsonTree match {
+        case JsObject(_, properties) =>
+          Json(properties.map { case (k, v) => k := f(row, v) }.toSeq: _*)
+        case JsString(tableName, columnName) =>
+          jString(getColumn(tableName, columnName).value.asInstanceOf[String])
+        case JsInt(tableName, columnName) =>
+          jNumber(getColumn(tableName, columnName).value.asInstanceOf[Int])
+        case JsArray(_, JsString(tableName, columnName)) =>
+          println(getColumn(tableName, columnName).value.getClass)
+          val v = getColumn(tableName, columnName).value.asInstanceOf[Array[String]]
+          Json.array(v.map(jString.apply): _*)
+        case JsArray(_, JsInt(tableName, columnName)) =>
+          val v = getColumn(tableName, columnName).value.asInstanceOf[Array[Int]]
+          Json.array(v.map(jNumber): _*)
+      }
     }
 
-    for (row <- sqlResult) yield f(row, jsonStructure)
+    for (row <- parsedColumnss) yield f(row, jsonStructure)
   }
 
 }
