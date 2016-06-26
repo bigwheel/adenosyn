@@ -94,17 +94,17 @@ class WiringSpec extends FunSpec with Matchers {
     ipAddress should fullyMatch regex """\A\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\Z"""
   }
 
-  val artistTable = new Table("artist", "id", "name")
-  val artistKanaTable = new Table("artist_kana", "artist_id", "kana")
-  val musicTable = new Table("music", "id", "artist_id", "name")
-  val contentTable = new Table("content", "id", "music_id", "name")
+  val artistTable = new Table("artist", ("id", "Int"), ("name", "String"))
+  val artistKanaTable = new Table("artist_kana", ("artist_id", "Int"), ("kana", "String"))
+  val musicTable = new Table("music", ("id", "Int"), ("artist_id", "Int"), ("name", "String"))
+  val contentTable = new Table("content", ("id", "Int"), ("music_id", "Int"), ("name", "String"))
 
   it("1テーブルのSQLが出力できる") {
     val tableTree = DotTable(artistTable)
     val sqlResult = SQL(table.toSqlFromDot(tableTree)._1).map(_.toMap).list.apply()
     sqlResult should equal(List(Map(
-      "artist__id" -> 1,
-      "artist__name" -> "水樹奈々"
+      "artist__id__Int" -> 1,
+      "artist__name__String" -> "水樹奈々"
     )))
   }
 
@@ -118,10 +118,10 @@ class WiringSpec extends FunSpec with Matchers {
     )
     val sqlResult = SQL(table.toSqlFromDot(tableTree)._1).map(_.toMap).list.apply()
     sqlResult should equal(List(Map(
-      "artist__id" -> 1,
-      "artist__name" -> "水樹奈々",
-      "artist_kana__artist_id" -> 1,
-      "artist_kana__kana" -> "みずきなな"
+      "artist__id__Int" -> 1,
+      "artist__name__String" -> "水樹奈々",
+      "artist_kana__artist_id__Int" -> 1,
+      "artist_kana__kana__String" -> "みずきなな"
     )))
   }
 
@@ -135,11 +135,11 @@ class WiringSpec extends FunSpec with Matchers {
     )
     val sqlResult = SQL(table.toSqlFromDot(tableTree)._1).map(_.toMap).list.apply()
     sqlResult should equal(List(Map(
-      "artist__id" -> 1,
-      "artist__name" -> "水樹奈々",
-      "music__ids" -> "11,12",
-      "music__artist_id" -> 1,
-      "music__names" -> "深愛,innocent starter"
+      "artist__id__Int" -> 1,
+      "artist__name__String" -> "水樹奈々",
+      "music__id__Ints" -> "11,12",
+      "music__artist_id__Int" -> 1,
+      "music__name__Strings" -> "深愛,innocent starter"
     )))
   }
 
@@ -159,14 +159,14 @@ class WiringSpec extends FunSpec with Matchers {
     )
     val sqlResult = SQL(table.toSqlFromDot(tableTree)._1).map(_.toMap).list.apply()
     sqlResult should equal(List(Map(
-      "artist__id" -> 1,
-      "artist__name" -> "水樹奈々",
-      "music__ids" -> "11,12",
-      "music__artist_id" -> 1,
-      "music__names" -> "深愛,innocent starter",
-      "content__idss" -> "111,112,121",
-      "content__music_ids" -> "11,12",
-      "content__namess" -> "深愛 - ショートVer.,深愛 - ロングVer.,innocent starter(inst)"
+      "artist__id__Int" -> 1,
+      "artist__name__String" -> "水樹奈々",
+      "music__id__Ints" -> "11,12",
+      "music__artist_id__Int" -> 1,
+      "music__name__Strings" -> "深愛,innocent starter",
+      "content__id__Intss" -> "111,112,121",
+      "content__music_id__Ints" -> "11,12",
+      "content__name__Stringss" -> "深愛 - ショートVer.,深愛 - ロングVer.,innocent starter(inst)"
     )))
   }
 
@@ -289,6 +289,7 @@ class WiringSpec extends FunSpec with Matchers {
     it(test.title) {
       val tableTree: DotTable = toTableStructure(test.input)
       val sqlResult = SQL(table.toSqlFromDot(tableTree)._1).map(_.toMap).list.apply()
+      val parsedColumns = structureSqlResult(sqlResult)
       def sqlResultToJson: List[Json] = toJsonObj(sqlResult, test.input)
       sqlResultToJson should equal(test.expected)
     }

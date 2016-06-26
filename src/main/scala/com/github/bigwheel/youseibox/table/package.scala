@@ -4,20 +4,20 @@ import argonaut.Argonaut._
 import argonaut._
 import com.github.bigwheel.youseibox.json._
 import scalaz.Scalaz._
-import scalaz._
 
 package object table {
 
   case class Dot[D, L](value: D, lines: Line[L, D]*)
   case class Line[L, D](value: L, dot: Dot[D, L])
 
-  class Table(val name: String, columnNames: String*) {
+  class Table(val name: String, inColumns: (String, String)*) {
+    val columnNames = inColumns.map(_._1)
     require(columnNames.distinct.size == columnNames.size) // カラム名はユニークでなければならない
-    val columns: Set[Column] = columnNames.map(new Column(_, this)).toSet
+    val columns: Set[Column] = inColumns.map(c => new Column(c._1, this, c._2)).toSet
     def getColumn(name: String): Column = columns.find(_.name === name).get
   }
 
-  class Column(val name: String, val table: Table) {
+  class Column(val name: String, val table: Table, val typeName: String) {
     def toSql = table.name + "." + name
   }
 
@@ -56,7 +56,8 @@ package object table {
   }
 
   class FullColumnInfo(val columnExpression: String, val nowColumnName: String, val originalColumn: Column) {
-    def this(column: Column) = this(s"${column.toSql}", s"${column.table.name}__${column.name}", column)
+    def this(column: Column) = this(s"${column.toSql}",
+      s"${column.table.name}__${column.name}__${column.typeName}", column)
 
     val toColumnDefinition = s"$columnExpression AS $nowColumnName"
 
@@ -110,19 +111,50 @@ package object table {
     a(jsValue).get.dot
   }
 
+  case class ParsedColumn(tableName: String, columnName: String, dimention: Int, value: Any)
+  // TODO: ここ2次元以上にまだ対応出来ていない(arrayのネストに対応出来ていないという意味)
+  def structureSqlResult(sqlResult: List[Map[String, Any]]): List[List[ParsedColumn]] = {
+    val a = for (row <- sqlResult) yield {
+      for ((columnName, value) <- row) yield {
+        val result = """\A(.+)__(.+?)__(.+?)(s*)\Z""".r("tableName", "columnName", "type", "dimention").
+          findFirstMatchIn(columnName).get
+
+        val dim = result.group("dimention").count(_ == 's')
+        val parsedValue = if (dim == 1) {
+          // Any or Array[Any] or Array[Array[Any]] or ...
+          val tmpValue = value.asInstanceOf[String]
+          tmpValue.split(',').map { elem =>
+            result.group("type") match {
+              case "Int" => elem.toInt // 下と違って一度group_concatしているためstringからtoIntする必要がある
+              case "String" => elem // .asInstanceOf[String]
+            }
+          }
+        } else {
+          result.group("type") match {
+            case "Int" => value.asInstanceOf[Int]
+            case "String" => value.asInstanceOf[String]
+          }
+        }
+
+        ParsedColumn(result.group("tableName"), result.group("columnName"), dim, parsedValue)
+      }
+    }
+    a.map(_.toList)
+  }
+
   def toJsonObj(sqlResult: List[Map[String, Any]], jsonStructure: JsValue): List[Json] = {
     def f(row: Map[String, Any], jsonTree: JsValue): Json = jsonTree match {
       case JsObject(_, properties) =>
         Json(properties.map { case (k, v) => k := f(row, v) }.toSeq: _*)
       case JsString(tableName, columnName) =>
-        jString(row(tableName + "__" + columnName).asInstanceOf[String])
+        jString(row(tableName + "__" + columnName + "__String").asInstanceOf[String])
       case JsInt(tableName, columnName) =>
-        jNumber(row(tableName + "__" + columnName).asInstanceOf[Int])
+        jNumber(row(tableName + "__" + columnName + "__Int").asInstanceOf[Int])
       case JsArray(_, JsString(tableName, columnName)) =>
-        val a = row(tableName + "__" + columnName + "s").asInstanceOf[String].split(",")
+        val a = row(tableName + "__" + columnName + "__Strings").asInstanceOf[String].split(",")
         Json.array(a.map(jString.apply): _*)
       case JsArray(_, JsInt(tableName, columnName)) =>
-        val a = row(tableName + "__" + columnName + "s").asInstanceOf[String].split(",")
+        val a = row(tableName + "__" + columnName + "__Ints").asInstanceOf[String].split(",")
         Json.array(a.map(_.asInstanceOf[Int]).map(jNumber): _*)
     }
 
