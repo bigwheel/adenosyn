@@ -3,6 +3,7 @@ package com.github.bigwheel.youseibox
 import argonaut.Argonaut._
 import argonaut._
 import com.github.bigwheel.youseibox.json._
+import scalaz._
 import scalaz.Scalaz._
 
 package object table {
@@ -111,7 +112,18 @@ package object table {
     a(jsValue).get.dot
   }
 
-  case class ParsedColumn(tableName: String, columnName: String, dimention: Int, value: Any)
+  case class ParsedColumn(tableName: String, columnName: String, dimention: Int, value: Any) {
+    // arrayじゃなくても結果返すので注意
+    def drill(index: Int): ParsedColumn = value match {
+      case a: Array[_] => new ParsedColumn(tableName, columnName, dimention - 1, a(index))
+      case a => new ParsedColumn(tableName, columnName, dimention, a)
+    }
+
+    val length: Option[Int] = value match {
+      case a: Array[_] => a.length.some
+      case _ => none
+    }
+  }
   // TODO: ここ2次元以上にまだ対応出来ていない(arrayのネストに対応出来ていないという意味)
   def structureSqlResult(sqlResult: List[Map[String, Any]]): List[List[ParsedColumn]] = {
     val a = for (row <- sqlResult) yield {
@@ -148,17 +160,16 @@ package object table {
       jsonTree match {
         case JsObject(_, properties) =>
           Json(properties.map { case (k, v) => k := f(row, v) }.toSeq: _*)
+        case JsArray(_, jsValue) =>
+          val arrayLengths = row.flatMap(_.length).distinct
+          require(arrayLengths.length == 1, row)
+          (0 until arrayLengths(0)).map { index =>
+            f(row.map(_.drill(index)), jsValue)
+          }.toList |> jArray.apply
         case JsString(tableName, columnName) =>
           jString(getColumn(tableName, columnName).value.asInstanceOf[String])
         case JsInt(tableName, columnName) =>
           jNumber(getColumn(tableName, columnName).value.asInstanceOf[Int])
-        case JsArray(_, JsString(tableName, columnName)) =>
-          println(getColumn(tableName, columnName).value.getClass)
-          val v = getColumn(tableName, columnName).value.asInstanceOf[Array[String]]
-          Json.array(v.map(jString.apply): _*)
-        case JsArray(_, JsInt(tableName, columnName)) =>
-          val v = getColumn(tableName, columnName).value.asInstanceOf[Array[Int]]
-          Json.array(v.map(jNumber): _*)
       }
     }
 

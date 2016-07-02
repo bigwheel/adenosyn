@@ -262,8 +262,8 @@ class WiringSpec extends FunSpec with Matchers {
         "kana" := "みずきなな",
         "musics" := Json.array(jString("深愛"), jString("innocent starter"))
       ))
-    )
-    /*TestCase( // TODO: 派生ケースなので後回し
+    ),
+    TestCase(
       "ネスト内からネスト外のカラムを参照できる",
       JsObject(
         LineJoinDefinition(null, DotTable(artistTable)).some,
@@ -282,7 +282,27 @@ class WiringSpec extends FunSpec with Matchers {
         "name" := "水樹奈々",
         "musics" := Json.array(jNumber(1), jNumber(1))
       ))
-    )*/
+    ),
+    TestCase(
+      "jsonオブジェクトが配列の中だとしても組み立てられる",
+      JsObject(
+        LineJoinDefinition(null, DotTable(artistTable)).some,
+        Map[String, JsValue](
+          "name" -> JsString("artist", "name"),
+          "musics" -> JsArray(
+            LineJoinDefinition(
+              JoinDefinition(artistTable.getColumn("id"), true, musicTable.getColumn("artist_id")),
+              DotTable(musicTable)
+            ).some,
+            JsObject(None, Map[String, JsValue]("name" -> JsString("music", "name")))
+          )
+        )
+      ),
+      List(Json(
+        "name" := "水樹奈々",
+        "musics" := Json.array(Json("name" := "深愛"), Json("name" := "innocent starter"))
+      ))
+    )
   )
 
   for (test <- tests) {
@@ -295,4 +315,30 @@ class WiringSpec extends FunSpec with Matchers {
     }
   }
 
+  /*
+      TestCase(
+      "jsonオブジェクトが配列の中だとしても組み立てられる",
+      JsObject(
+        LineJoinDefinition(null, DotTable(artistTable)).some,
+        Map[String, JsValue](
+          "name" -> JsString("artist", "name"),
+          "musics" -> JsArray(
+            LineJoinDefinition(
+              JoinDefinition(artistTable.getColumn("id"), false, artistKanaTable.getColumn("artist_id")),
+              DotTable(musicTable)
+            ).some,
+            JsObject(None, Map[String, JsValue]("name" -> JsString("music", "name")))
+          )
+        )
+      ),
+      List(Json(
+        "name" := "水樹奈々",
+        "musics" := Json.array(Json("name" := "深愛"), Json("name" := "innocent starter"))
+      ))
+    )
+こういうTableJoin構造が間違っている奴、処理中に間違っていると出すようにする
+(sql吐いて実行したあとにエラーを出す)
+あとjsArray使っているのにJsonDefinitionの2番めがtrueじゃない奴とかも事前チェックでエラーにする
+)
+   */
 }
