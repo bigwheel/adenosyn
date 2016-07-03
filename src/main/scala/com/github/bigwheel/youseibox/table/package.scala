@@ -3,7 +3,6 @@ package com.github.bigwheel.youseibox
 import argonaut.Argonaut._
 import argonaut._
 import com.github.bigwheel.youseibox.json._
-import scalaz._
 import scalaz.Scalaz._
 
 package object table {
@@ -62,32 +61,36 @@ package object table {
 
     val toColumnDefinition = s"$columnExpression AS $nowColumnName"
 
-    def bindUp: FullColumnInfo = new FullColumnInfo(s"GROUP_CONCAT(${this.columnExpression})",
-      this.nowColumnName + "s", this.originalColumn)
+    def bindUp(nestLevel: Int): FullColumnInfo = new FullColumnInfo(
+      s"GROUP_CONCAT(${this.columnExpression} SEPARATOR ',${nestLevel + 1}')",
+      this.nowColumnName + "s",
+      this.originalColumn
+    )
 
     def updateTableName(newTableName: String): FullColumnInfo =
       new FullColumnInfo(s"$newTableName.${this.nowColumnName}", this.nowColumnName, this.originalColumn)
   }
 
-  def toSqlFromDot(dot: DotTable): (String, Set[FullColumnInfo]) = {
+  def toSqlFromDot(dot: DotTable, nestLevel: Int = 0): (String, Set[FullColumnInfo]) = {
     val table = dot.value
-    val children = dot.lines.zipWithIndex.map { case (line, i) => toSqlFromLine(line, s"_$i") }
+    val children = dot.lines.zipWithIndex.map { case (line, i) => toSqlFromLine(line, s"_$i", nestLevel) }
     val allFcis = table.columns.map { new FullColumnInfo(_) } ++ children.flatMap(_._2)
     val sql = s"SELECT ${allFcis.getSelectSqlBody} FROM ${table.name}"
 
     ((sql +: children.map(_._1)).mkString(" "), allFcis)
   }
-  private def toSqlFromLine(line: LineJoinDefinition, newChildTableName: String):
+  private def toSqlFromLine(line: LineJoinDefinition, newChildTableName: String, nestLevel: Int):
   (String, Set[FullColumnInfo]) = {
     val joinDefinition = line.value
-    val (sql, oldFcis) = toSqlFromDot(line.dot)
+    val plusLevel = if (joinDefinition._1toNRelation) 1 else 0
+    val (sql, oldFcis) = toSqlFromDot(line.dot, nestLevel + plusLevel)
     val fcis = oldFcis.map(_.updateTableName("A"))
     val newFcis = if (joinDefinition._1toNRelation) {
       fcis.map { fci =>
         if (fci.originalColumn == joinDefinition.columnOfChildTable)
           fci
         else
-          fci.bindUp
+          fci.bindUp(nestLevel)
       }
     } else fcis
     val newNewFcis = newFcis.map(_.updateTableName(newChildTableName))
@@ -134,7 +137,7 @@ package object table {
         val dim = result.group("dimention").count(_ == 's')
         val parsedValue = if (dim == 1) {
           // Any or Array[Any] or Array[Array[Any]] or ...
-          val splitted = value.asInstanceOf[String].split(',')
+          val splitted = value.asInstanceOf[String].split(",1")
           result.group("type") match {
             case "Int" => splitted.map(_.toInt) // 下と違って一度group_concatしているためstringからtoIntする必要がある
             case "String" => splitted // .asInstanceOf[String]

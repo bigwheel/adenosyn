@@ -137,9 +137,9 @@ class WiringSpec extends FunSpec with Matchers {
     sqlResult should equal(List(Map(
       "artist__id__Int" -> 1,
       "artist__name__String" -> "水樹奈々",
-      "music__id__Ints" -> "11,12",
+      "music__id__Ints" -> "11,112",
       "music__artist_id__Int" -> 1,
-      "music__name__Strings" -> "深愛,innocent starter"
+      "music__name__Strings" -> "深愛,1innocent starter"
     )))
   }
 
@@ -161,12 +161,12 @@ class WiringSpec extends FunSpec with Matchers {
     sqlResult should equal(List(Map(
       "artist__id__Int" -> 1,
       "artist__name__String" -> "水樹奈々",
-      "music__id__Ints" -> "11,12",
+      "music__id__Ints" -> "11,112",
       "music__artist_id__Int" -> 1,
-      "music__name__Strings" -> "深愛,innocent starter",
-      "content__id__Intss" -> "111,112,121",
-      "content__music_id__Ints" -> "11,12",
-      "content__name__Stringss" -> "深愛 - ショートVer.,深愛 - ロングVer.,innocent starter(inst)"
+      "music__name__Strings" -> "深愛,1innocent starter",
+      "content__id__Intss" -> "111,2112,1121",
+      "content__music_id__Ints" -> "11,112",
+      "content__name__Stringss" -> "深愛 - ショートVer.,2深愛 - ロングVer.,1innocent starter(inst)"
     )))
   }
 
@@ -302,6 +302,57 @@ class WiringSpec extends FunSpec with Matchers {
         "name" := "水樹奈々",
         "musics" := Json.array(Json("name" := "深愛"), Json("name" := "innocent starter"))
       ))
+    ),
+    TestCase(
+      "ネストが二重でも組み立てられる",
+      JsObject(
+        LineJoinDefinition(null, DotTable(artistTable)).some,
+        Map[String, JsValue](
+          "name" -> JsString("artist", "name"),
+          "musics" -> JsArray(
+            LineJoinDefinition(
+              JoinDefinition(artistTable.getColumn("id"), true, musicTable.getColumn("artist_id")),
+              DotTable(musicTable)
+            ).some,
+            JsObject(
+              None,
+              Map[String, JsValue](
+                "name" -> JsString("music", "name"),
+                "contents" -> JsArray(
+                  LineJoinDefinition(
+                    JoinDefinition(musicTable.getColumn("id"), true, contentTable.getColumn("music_id")),
+                    DotTable(contentTable)
+                  ).some,
+                  JsObject(
+                    None,
+                    Map[String, JsValue](
+                      "name" -> JsString("content", "name")
+                    )
+                  )
+                )
+              )
+            )
+          )
+        )
+      ),
+      List(Json(
+        "name" := "水樹奈々",
+        "musics" := Json.array(
+          Json(
+            "name" := "深愛",
+            "contents" := Json.array(
+              Json("name" := "深愛 - ショートVer."),
+              Json("name" := "深愛 - ロングVer.")
+            )
+          ),
+          Json(
+            "name" := "innocent starter",
+            "contents" := Json.array(
+              Json("name" := "innocent starter(inst)")
+            )
+          )
+        )
+      ))
     )
   )
 
@@ -314,6 +365,9 @@ class WiringSpec extends FunSpec with Matchers {
       sqlResultToJson should equal(test.expected)
     }
   }
+
+  // https://dev.mysql.com/doc/refman/5.6/ja/group-by-functions.html#function_group-concat
+  // TODO: group_concatの最大長について修正するようにしろ、ドキュメントでもいいけど
 
   /*
       TestCase(
