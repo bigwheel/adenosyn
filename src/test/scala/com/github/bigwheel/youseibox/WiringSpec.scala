@@ -84,7 +84,7 @@ class WiringSpec extends FunSpec with Matchers {
 
   createFixtures
 
-  /*it("開発環境VMが動いている") {
+  /*it("開発環境VMが動いている") { // テスト毎に時間が数秒余計にかかるのでコメントアウト
     val result = Process("otto dev vagrant status").!!
     result.split("\n")(3) should
       equal("default                   running (virtualbox)")
