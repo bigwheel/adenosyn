@@ -99,20 +99,24 @@ package object table {
   }
 
   def toTableStructure(jsValue: JsValue): DotTable = {
-    def a(jsValue: JsValue): Option[LineJoinDefinition] = jsValue match {
+    def a(jsValue: JsValue): Seq[LineJoinDefinition] = jsValue match {
       case JsObject(Some(line), b) =>
         val c = b.values.flatMap(a)
         val d: Seq[LineJoinDefinition] = line.dot.lines
         val e = (c ++ d).toSeq
-        LineJoinDefinition(line.value, DotTable(line.dot.value, e: _*)).some
+        Seq(LineJoinDefinition(line.value, DotTable(line.dot.value, e: _*)))
       case JsArray(Some(line), b) =>
-        val c = a(b).toSeq
+        val c = a(b)
         val d: Seq[LineJoinDefinition] = line.dot.lines
         val e = c ++ d
-        LineJoinDefinition(line.value, DotTable(line.dot.value, e: _*)).some
-      case _ => None
+        Seq(LineJoinDefinition(line.value, DotTable(line.dot.value, e: _*)))
+      case JsObject(None, b) =>
+        val c = b.values.flatMap(a)
+        c.toSeq
+      // TDOO: arrayでtable definitonが空のテストケースを作れ、それでこの下に追加しろ
+      case _ => Seq.empty
     }
-    a(jsValue).get.dot
+    a(jsValue).head.dot
   }
 
   case class ParsedColumn(tableName: String, columnName: String, dimention: Int, value: Any) {
@@ -127,7 +131,7 @@ package object table {
       case _ => none
     }
   }
-  // TODO: ここ2次元以上にまだ対応出来ていない(arrayのネストに対応出来ていないという意味)
+
   def structureSqlResult(sqlResult: List[Map[String, Any]]): List[List[ParsedColumn]] = {
     val a = for (row <- sqlResult) yield {
       for ((columnName, value) <- row) yield {
@@ -135,21 +139,16 @@ package object table {
           findFirstMatchIn(columnName).get
 
         val dim = result.group("dimention").count(_ == 's')
-        val parsedValue = if (dim == 1) {
-          // Any or Array[Any] or Array[Array[Any]] or ...
-          val splitted = value.asInstanceOf[String].split(",1")
+        def drill(level: Int, str: String): Any = if (dim - level == 0) {
           result.group("type") match {
-            case "Int" => splitted.map(_.toInt) // 下と違って一度group_concatしているためstringからtoIntする必要がある
-            case "String" => splitted // .asInstanceOf[String]
+            case "Int" => str.toInt
+            case "String" => str
           }
         } else {
-          result.group("type") match {
-            case "Int" => value.asInstanceOf[Int]
-            case "String" => value.asInstanceOf[String]
-          }
+          val splitted = str.asInstanceOf[String].split("," + (level + 1).toString)
+          splitted.map(drill(level + 1, _))
         }
-
-        ParsedColumn(result.group("tableName"), result.group("columnName"), dim, parsedValue)
+        ParsedColumn(result.group("tableName"), result.group("columnName"), dim, drill(0, value.toString))
       }
     }
     a.map(_.toList)
@@ -165,7 +164,7 @@ package object table {
           Json(properties.map { case (k, v) => k := f(row, v) }.toSeq: _*)
         case JsArray(_, jsValue) =>
           val arrayLengths = row.flatMap(_.length).distinct
-          require(arrayLengths.length == 1, row)
+          require(arrayLengths.length == 1)
           (0 until arrayLengths(0)).map { index =>
             f(row.map(_.drill(index)), jsValue)
           }.toList |> jArray.apply

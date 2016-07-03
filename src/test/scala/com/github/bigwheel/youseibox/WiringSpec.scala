@@ -360,7 +360,9 @@ class WiringSpec extends FunSpec with Matchers {
     it(test.title) {
       val tableTree: DotTable = toTableStructure(test.input)
       val sqlResult = SQL(table.toSqlFromDot(tableTree)._1).map(_.toMap).list.apply()
+      //println(sqlResult)
       val parsedColumnss = structureSqlResult(sqlResult)
+      //println(parsedColumnss)
       def sqlResultToJson: List[Json] = toJsonObj(parsedColumnss, test.input)
       sqlResultToJson should equal(test.expected)
     }
