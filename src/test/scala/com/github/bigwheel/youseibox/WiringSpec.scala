@@ -101,7 +101,7 @@ class WiringSpec extends FunSpec with Matchers {
 
   it("1テーブルのSQLが出力できる") {
     val tableTree = DotTable(artistTable)
-    val sqlResult = SQL(table.toSqlFromDot(tableTree)._1).map(_.toMap).list.apply()
+    val sqlResult = SQL(table.toSqlFromDot(tableTree)).map(_.toMap).list.apply()
     sqlResult should equal(List(Map(
       "artist__id__Int" -> 1,
       "artist__name__String" -> "水樹奈々"
@@ -112,11 +112,11 @@ class WiringSpec extends FunSpec with Matchers {
     val tableTree = DotTable(
       artistTable,
       LineJoinDefinition(
-        JoinDefinition(artistTable.getColumn("id"), false, artistKanaTable.getColumn("artist_id")),
+        JoinDefinition("id" -> "Int", false, "artist_id" -> "Int"),
         DotTable(artistKanaTable)
       )
     )
-    val sqlResult = SQL(table.toSqlFromDot(tableTree)._1).map(_.toMap).list.apply()
+    val sqlResult = SQL(table.toSqlFromDot(tableTree)).map(_.toMap).list.apply()
     sqlResult should equal(List(Map(
       "artist__id__Int" -> 1,
       "artist__name__String" -> "水樹奈々",
@@ -129,11 +129,11 @@ class WiringSpec extends FunSpec with Matchers {
     val tableTree = DotTable(
       artistTable,
       LineJoinDefinition(
-        JoinDefinition(artistTable.getColumn("id"), true, musicTable.getColumn("artist_id")),
+        JoinDefinition("id" -> "Int", true, "artist_id" -> "Int"),
         DotTable(musicTable)
       )
     )
-    val sqlResult = SQL(table.toSqlFromDot(tableTree)._1).map(_.toMap).list.apply()
+    val sqlResult = SQL(table.toSqlFromDot(tableTree)).map(_.toMap).list.apply()
     sqlResult should equal(List(Map(
       "artist__id__Int" -> 1,
       "artist__name__String" -> "水樹奈々",
@@ -147,17 +147,17 @@ class WiringSpec extends FunSpec with Matchers {
     val tableTree = DotTable(
       artistTable,
       LineJoinDefinition(
-        JoinDefinition(artistTable.getColumn("id"), true, musicTable.getColumn("artist_id")),
+        JoinDefinition("id" -> "Int", true, "artist_id" -> "Int"),
         DotTable(
           musicTable,
           LineJoinDefinition(
-            JoinDefinition(musicTable.getColumn("id"), true, contentTable.getColumn("music_id")),
+            JoinDefinition("id" -> "Int", true, "music_id" -> "Int"),
             DotTable(contentTable)
           )
         )
       )
     )
-    val sqlResult = SQL(table.toSqlFromDot(tableTree)._1).map(_.toMap).list.apply()
+    val sqlResult = SQL(table.toSqlFromDot(tableTree)).map(_.toMap).list.apply()
     sqlResult should equal(List(Map(
       "artist__id__Int" -> 1,
       "artist__name__String" -> "水樹奈々",
@@ -201,7 +201,7 @@ class WiringSpec extends FunSpec with Matchers {
           DotTable(
             artistTable,
             LineJoinDefinition(
-              JoinDefinition(artistTable.getColumn("id"), false, artistKanaTable.getColumn("artist_id")),
+              JoinDefinition("id" -> "Int", false, "artist_id" -> "Int"),
               DotTable(artistKanaTable)
             )
           )
@@ -240,7 +240,7 @@ class WiringSpec extends FunSpec with Matchers {
           DotTable(
             artistTable,
             LineJoinDefinition(
-              JoinDefinition(artistTable.getColumn("id"), false, artistKanaTable.getColumn("artist_id")),
+              JoinDefinition("id" -> "Int", false, "artist_id" -> "Int"),
               DotTable(artistKanaTable)
             )
           )
@@ -250,7 +250,7 @@ class WiringSpec extends FunSpec with Matchers {
           "kana" -> JsString("artist_kana", "kana"),
           "musics" -> JsArray(
             LineJoinDefinition(
-              JoinDefinition(artistTable.getColumn("id"), true, musicTable.getColumn("artist_id")),
+              JoinDefinition("id" -> "Int", true, "artist_id" -> "Int"),
               DotTable(musicTable)
             ).some,
             JsString("music", "name")
@@ -271,7 +271,7 @@ class WiringSpec extends FunSpec with Matchers {
           "name" -> JsString("artist", "name"),
           "musics" -> JsArray(
             LineJoinDefinition(
-              JoinDefinition(artistTable.getColumn("id"), true, musicTable.getColumn("artist_id")),
+              JoinDefinition("id" -> "Int", true, "artist_id" -> "Int"),
               DotTable(musicTable)
             ).some,
             JsInt("artist", "id")
@@ -291,7 +291,7 @@ class WiringSpec extends FunSpec with Matchers {
           "name" -> JsString("artist", "name"),
           "musics" -> JsArray(
             LineJoinDefinition(
-              JoinDefinition(artistTable.getColumn("id"), true, musicTable.getColumn("artist_id")),
+              JoinDefinition("id" -> "Int", true, "artist_id" -> "Int"),
               DotTable(musicTable)
             ).some,
             JsObject(None, Map[String, JsValue]("name" -> JsString("music", "name")))
@@ -311,7 +311,7 @@ class WiringSpec extends FunSpec with Matchers {
           "name" -> JsString("artist", "name"),
           "musics" -> JsArray(
             LineJoinDefinition(
-              JoinDefinition(artistTable.getColumn("id"), true, musicTable.getColumn("artist_id")),
+              JoinDefinition("id" -> "Int", true, "artist_id" -> "Int"),
               DotTable(musicTable)
             ).some,
             JsObject(
@@ -320,7 +320,7 @@ class WiringSpec extends FunSpec with Matchers {
                 "name" -> JsString("music", "name"),
                 "contents" -> JsArray(
                   LineJoinDefinition(
-                    JoinDefinition(musicTable.getColumn("id"), true, contentTable.getColumn("music_id")),
+                    JoinDefinition("id" -> "Int", true, "music_id" -> "Int"),
                     DotTable(contentTable)
                   ).some,
                   JsObject(
@@ -374,7 +374,7 @@ class WiringSpec extends FunSpec with Matchers {
         "name" -> JsString("artist", "name"),
         "musics" -> JsArray(
           LineJoinDefinition(
-            JoinDefinition(artistTable.getColumn("id"), false, artistKanaTable.getColumn("artist_id")),
+            JoinDefinition("id" -> "Int", false, "artist_id" -> "Int"),
             DotTable(musicTable)
           ).some,
           JsObject(None, Map[String, JsValue]("name" -> JsString("music", "name")))

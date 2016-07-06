@@ -10,26 +10,27 @@ package object table {
   case class Dot[D, L](value: D, lines: Line[L, D]*)
   case class Line[L, D](value: L, dot: Dot[D, L])
 
-  class Table(val name: String, columnNameAndTypeMap: Map[String, String]) {
-    val columns: Set[Column] = columnNameAndTypeMap.map(c => new Column(c._1, this, c._2)).toSet
-    def getColumn(name: String): Column = columns.find(_.name === name).get
-  }
+  class Table(val name: String, val columnNameAndTypeMap: Map[String, String])
 
-  class Column(val name: String, val table: Table, val typeName: String) {
-    def toSql = table.name + "." + name
-  }
+  private type FQCN = String // Fully Qualified Column Name テーブル名も省略していないカラム名(勝手に命名)
+  def toFQCN(table: Table, columnName: ColumnName): FQCN = table.name + "." + columnName
+  private type ColumnName = String
+  private type ScalaTypeName = String
 
   case class JoinDefinition(
-    columnOfParentTable: Column,
+    columnOfParentTable: (ColumnName, ScalaTypeName),
     _1toNRelation: Boolean,
-    columnOfChildTable: Column) {
-    def toSql(newChildTableName: String) = {
-      val newChildColumnName = new FullColumnInfo(columnOfChildTable).nowColumnName
-      s"ON ${columnOfParentTable.toSql} = $newChildTableName.$newChildColumnName"
+    columnOfChildTable: (ColumnName, ScalaTypeName)) {
+    def toSql(parentTable: Table, childTable: Table, newChildTableName: String) = {
+      val newChildColumnName = new FullColumnInfo(childTable, columnOfChildTable._1,
+        columnOfChildTable._2).nowColumnName
+      s"ON ${toFQCN(parentTable, columnOfParentTable._1)} = $newChildTableName.$newChildColumnName"
     }
-    def groupedBy(newTableName: String) = if (_1toNRelation)
-      s" GROUP BY ${new FullColumnInfo(columnOfChildTable).updateTableName(newTableName).nowColumnName}"
-    else
+    def groupedBy(childTable: Table, newTableName: String) = if (_1toNRelation) {
+      val newFCI = new FullColumnInfo(childTable, columnOfChildTable._1, columnOfChildTable._2).
+        updateTableName(newTableName)
+      s" GROUP BY ${newFCI.nowColumnName}"
+    } else
       ""
   }
 
@@ -53,9 +54,10 @@ package object table {
     }
   }
 
-  private class FullColumnInfo(val columnExpression: String, val nowColumnName: String, val originalColumn: Column) {
-    def this(column: Column) = this(s"${column.toSql}",
-      s"${column.table.name}__${column.name}__${column.typeName}", column)
+  private class FullColumnInfo(val columnExpression: String, val nowColumnName: String, val originalColumn: FQCN) {
+    def this(table: Table, columnName: ColumnName, scalaTypeName: ScalaTypeName) = this(
+      toFQCN(table, columnName), s"${table.name}__${columnName}__$scalaTypeName",
+      toFQCN(table, columnName))
 
     val toColumnDefinition = s"$columnExpression AS $nowColumnName"
 
@@ -73,29 +75,31 @@ package object table {
   def toSqlFromDot(dot: DotTable): String = toSqlFromDot(dot, 0)._1
   private def toSqlFromDot(dot: DotTable, nestLevel: Int): (String, Set[FullColumnInfo]) = {
     val table = dot.value
-    val children = dot.lines.zipWithIndex.map { case (line, i) => toSqlFromLine(line, s"_$i", nestLevel) }
-    val allFcis = table.columns.map { new FullColumnInfo(_) } ++ children.flatMap(_._2)
+    val children = dot.lines.zipWithIndex.map { case (line, i) => toSqlFromLine(table, line, s"_$i", nestLevel) }
+    val allFcis = table.columnNameAndTypeMap.map { case (columnName, scalaTypeName) =>
+      new FullColumnInfo(table, columnName, scalaTypeName) }.toSet ++ children.flatMap(_._2)
     val sql = s"SELECT ${allFcis.getSelectSqlBody} FROM ${table.name}"
 
     ((sql +: children.map(_._1)).mkString(" "), allFcis)
   }
-  private def toSqlFromLine(line: LineJoinDefinition, newChildTableName: String, nestLevel: Int):
+  private def toSqlFromLine(parentTable: Table, line: LineJoinDefinition, newChildTableName: String, nestLevel: Int):
   (String, Set[FullColumnInfo]) = {
     val joinDefinition = line.value
+    val childTable = line.dot.value
     val plusLevel = if (joinDefinition._1toNRelation) 1 else 0
     val (sql, oldFcis) = toSqlFromDot(line.dot, nestLevel + plusLevel)
     val fcis = oldFcis.map(_.updateTableName("A"))
     val newFcis = if (joinDefinition._1toNRelation) {
       fcis.map { fci =>
-        if (fci.originalColumn == joinDefinition.columnOfChildTable)
+        if (fci.originalColumn == toFQCN(childTable, joinDefinition.columnOfChildTable._1))
           fci
         else
           fci.bindUp(nestLevel)
       }
     } else fcis
     val newNewFcis = newFcis.map(_.updateTableName(newChildTableName))
-    val shallowNestSql = s"SELECT ${newFcis.getSelectSqlBody} FROM ( $sql ) AS A ${joinDefinition.groupedBy("A")}"
-    (s"JOIN ( $shallowNestSql ) AS $newChildTableName ${joinDefinition.toSql(newChildTableName)}", newNewFcis)
+    val shallowNestSql = s"SELECT ${newFcis.getSelectSqlBody} FROM ( $sql ) AS A ${joinDefinition.groupedBy(childTable, "A")}"
+    (s"JOIN ( $shallowNestSql ) AS $newChildTableName ${joinDefinition.toSql(parentTable, childTable, newChildTableName)}", newNewFcis)
   }
 
   def toTableStructure(jsValue: JsValue): DotTable = {
