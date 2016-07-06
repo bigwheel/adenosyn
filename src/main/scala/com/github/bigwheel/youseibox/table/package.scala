@@ -165,7 +165,7 @@ package object table {
         case JsArray(_, jsValue) =>
           val arrayLengths = row.flatMap(_.length).distinct
           require(arrayLengths.length == 1)
-          (0 until arrayLengths(0)).map { index =>
+          (0 until arrayLengths.head).map { index =>
             f(row.map(_.drill(index)), jsValue)
           }.toList |> jArray.apply
         case JsString(tableName, columnName) =>
