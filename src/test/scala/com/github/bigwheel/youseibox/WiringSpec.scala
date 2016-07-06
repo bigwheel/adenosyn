@@ -94,10 +94,10 @@ class WiringSpec extends FunSpec with Matchers {
     ipAddress should fullyMatch regex """\A\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\Z"""
   }
 
-  val artistTable = new Table("artist", ("id", "Int"), ("name", "String"))
-  val artistKanaTable = new Table("artist_kana", ("artist_id", "Int"), ("kana", "String"))
-  val musicTable = new Table("music", ("id", "Int"), ("artist_id", "Int"), ("name", "String"))
-  val contentTable = new Table("content", ("id", "Int"), ("music_id", "Int"), ("name", "String"))
+  val artistTable = new Table("artist", Map("id" -> "Int", "name" -> "String"))
+  val artistKanaTable = new Table("artist_kana", Map("artist_id" -> "Int", "kana" -> "String"))
+  val musicTable = new Table("music", Map("id" -> "Int", "artist_id" -> "Int", "name" -> "String"))
+  val contentTable = new Table("content", Map("id" -> "Int", "music_id" -> "Int", "name" -> "String"))
 
   case class TestCase(title: String, input: JsValue, expected: List[Json])
   val tests = Seq[TestCase](
@@ -288,40 +288,36 @@ class WiringSpec extends FunSpec with Matchers {
   for (test <- tests) {
     it(test.title) {
       val tableTree: DotTable = toTableStructure(test.input)
-      val sqlResult = SQL(table.toSqlFromDot(tableTree)._1).map(_.toMap).list.apply()
-      val parsedColumnss = structureSqlResult(sqlResult)
+      val queryString: String = table.toSqlFromDot(tableTree)
+      val sqlResult: List[Map[String, Any]] = SQL(queryString).map(_.toMap).list.apply()
+      val parsedColumnss: List[List[ParsedColumn]] = structureSqlResult(sqlResult)
       def sqlResultToJson: List[Json] = toJsonObj(parsedColumnss, test.input)
       sqlResultToJson should equal(test.expected)
     }
   }
 
+  it("テーブル構造が破綻していると例外が出る") {
+    val jsValue = JsObject(
+      LineJoinDefinition(null, DotTable(artistTable)).some,
+      Map[String, JsValue](
+        "name" -> JsString("artist", "name"),
+        "musics" -> JsArray(
+          LineJoinDefinition(
+            JoinDefinition(artistTable.getColumn("id"), false, artistKanaTable.getColumn("artist_id")),
+            DotTable(musicTable)
+          ).some,
+          JsObject(None, Map[String, JsValue]("name" -> JsString("music", "name")))
+        )
+      )
+    )
+    a [Exception] should be thrownBy {
+      toTableStructure(jsValue)
+    }
+  }
+
   // https://dev.mysql.com/doc/refman/5.6/ja/group-by-functions.html#function_group-concat
   // TODO: group_concatの最大長について修正するようにしろ、ドキュメントでもいいけど
-
-  /*
-      TestCase(
-      "jsonオブジェクトが配列の中だとしても組み立てられる",
-      JsObject(
-        LineJoinDefinition(null, DotTable(artistTable)).some,
-        Map[String, JsValue](
-          "name" -> JsString("artist", "name"),
-          "musics" -> JsArray(
-            LineJoinDefinition(
-              JoinDefinition(artistTable.getColumn("id"), false, artistKanaTable.getColumn("artist_id")),
-              DotTable(musicTable)
-            ).some,
-            JsObject(None, Map[String, JsValue]("name" -> JsString("music", "name")))
-          )
-        )
-      ),
-      List(Json(
-        "name" := "水樹奈々",
-        "musics" := Json.array(Json("name" := "深愛"), Json("name" := "innocent starter"))
-      ))
-    )
-こういうTableJoin構造が間違っている奴、処理中に間違っていると出すようにする
-(sql吐いて実行したあとにエラーを出す)
-あとjsArray使っているのにJsonDefinitionの2番めがtrueじゃない奴とかも事前チェックでエラーにする
-)
-   */
+  // こういうTableJoin構造が間違っている奴、処理中に間違っていると出すようにする
+  // (sql吐いて実行したあとにエラーを出す)
+  // あとjsArray使っているのにJsonDefinitionの2番めがtrueじゃない奴とかも事前チェックでエラーにする
 }

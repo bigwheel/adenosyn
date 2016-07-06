@@ -10,10 +10,8 @@ package object table {
   case class Dot[D, L](value: D, lines: Line[L, D]*)
   case class Line[L, D](value: L, dot: Dot[D, L])
 
-  class Table(val name: String, inColumns: (String, String)*) {
-    val columnNames = inColumns.map(_._1)
-    require(columnNames.distinct.size == columnNames.size) // カラム名はユニークでなければならない
-    val columns: Set[Column] = inColumns.map(c => new Column(c._1, this, c._2)).toSet
+  class Table(val name: String, columnNameAndTypeMap: Map[String, String]) {
+    val columns: Set[Column] = columnNameAndTypeMap.map(c => new Column(c._1, this, c._2)).toSet
     def getColumn(name: String): Column = columns.find(_.name === name).get
   }
 
@@ -55,7 +53,7 @@ package object table {
     }
   }
 
-  class FullColumnInfo(val columnExpression: String, val nowColumnName: String, val originalColumn: Column) {
+  private class FullColumnInfo(val columnExpression: String, val nowColumnName: String, val originalColumn: Column) {
     def this(column: Column) = this(s"${column.toSql}",
       s"${column.table.name}__${column.name}__${column.typeName}", column)
 
@@ -71,7 +69,9 @@ package object table {
       new FullColumnInfo(s"$newTableName.${this.nowColumnName}", this.nowColumnName, this.originalColumn)
   }
 
-  def toSqlFromDot(dot: DotTable, nestLevel: Int = 0): (String, Set[FullColumnInfo]) = {
+  // DotTableからQueryStringを作る
+  def toSqlFromDot(dot: DotTable): String = toSqlFromDot(dot, 0)._1
+  private def toSqlFromDot(dot: DotTable, nestLevel: Int): (String, Set[FullColumnInfo]) = {
     val table = dot.value
     val children = dot.lines.zipWithIndex.map { case (line, i) => toSqlFromLine(line, s"_$i", nestLevel) }
     val allFcis = table.columns.map { new FullColumnInfo(_) } ++ children.flatMap(_._2)
