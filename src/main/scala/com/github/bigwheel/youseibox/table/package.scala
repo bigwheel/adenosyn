@@ -12,8 +12,11 @@ package object table {
 
   class Table(val name: String, val columnNameAndTypeMap: Map[String, String])
 
-  private type FQCN = String // Fully Qualified Column Name テーブル名も省略していないカラム名(勝手に命名)
-  def toFQCN(table: Table, columnName: ColumnName): FQCN = table.name + "." + columnName
+  // Fully Qualified Column Name テーブル名も省略していないカラム名(勝手に命名)
+  private case class FQCN(val tableName: String, columnName: String) {
+    def this(table: Table, columnName: ColumnName) = this(table.name, columnName)
+    val toSql = tableName + "." + columnName
+  }
   private type ColumnName = String
   private type ScalaTypeName = String
 
@@ -24,7 +27,7 @@ package object table {
     def toSql(parentTable: Table, childTable: Table, newChildTableName: String) = {
       val newChildColumnName = new FullColumnInfo(childTable, columnOfChildTable._1,
         columnOfChildTable._2).nowColumnName
-      s"ON ${toFQCN(parentTable, columnOfParentTable._1)} = $newChildTableName.$newChildColumnName"
+      s"ON ${new FQCN(parentTable, columnOfParentTable._1).toSql} = ${new FQCN(newChildTableName, newChildColumnName).toSql}"
     }
     def groupedBy(childTable: Table, newTableName: String) = if (_1toNRelation) {
       val newFCI = new FullColumnInfo(childTable, columnOfChildTable._1, columnOfChildTable._2).
@@ -55,9 +58,12 @@ package object table {
   }
 
   private class FullColumnInfo(val columnExpression: String, val nowColumnName: String, val originalColumn: FQCN) {
+    def this(column: FQCN, nowColumnName: String, originalColumn: FQCN) = this(
+      column.toSql, nowColumnName, originalColumn
+    )
     def this(table: Table, columnName: ColumnName, scalaTypeName: ScalaTypeName) = this(
-      toFQCN(table, columnName), s"${table.name}__${columnName}__$scalaTypeName",
-      toFQCN(table, columnName))
+      new FQCN(table, columnName), s"${table.name}__${columnName}__$scalaTypeName",
+      new FQCN(table, columnName))
 
     val toColumnDefinition = s"$columnExpression AS $nowColumnName"
 
@@ -68,7 +74,7 @@ package object table {
     )
 
     def updateTableName(newTableName: String): FullColumnInfo =
-      new FullColumnInfo(s"$newTableName.${this.nowColumnName}", this.nowColumnName, this.originalColumn)
+      new FullColumnInfo(new FQCN(newTableName, this.nowColumnName), this.nowColumnName, this.originalColumn)
   }
 
   // DotTableからQueryStringを作る
@@ -91,7 +97,7 @@ package object table {
     val fcis = oldFcis.map(_.updateTableName("A"))
     val newFcis = if (joinDefinition._1toNRelation) {
       fcis.map { fci =>
-        if (fci.originalColumn == toFQCN(childTable, joinDefinition.columnOfChildTable._1))
+        if (fci.originalColumn == new FQCN(childTable, joinDefinition.columnOfChildTable._1))
           fci
         else
           fci.bindUp(nestLevel)
