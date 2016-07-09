@@ -391,4 +391,5 @@ class WiringSpec extends FunSpec with Matchers {
   // こういうTableJoin構造が間違っている奴、処理中に間違っていると出すようにする
   // (sql吐いて実行したあとにエラーを出す)
   // あとjsArray使っているのにJsonDefinitionの2番めがtrueじゃない奴とかも事前チェックでエラーにする
+  // Optionで型を指定しているようなデータ構造はきっちりNoneを渡した時のテストも書いておくこと
 }

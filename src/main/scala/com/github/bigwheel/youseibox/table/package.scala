@@ -5,6 +5,7 @@ import argonaut._
 import com.github.bigwheel.youseibox.json._
 import scalaz.Scalaz._
 
+/* TODO: tabletreeへのリネームするのはどうだろう */
 package object table {
 
   case class Dot[D, L](value: D, lines: Line[L, D]*)
@@ -38,12 +39,12 @@ package object table {
   }
 
   type DotTable = Dot[Table, JoinDefinition]
-  type LineJoinDefinition = Line[JoinDefinition, Table]
   // typeではcompanion objectのエイリアスは作られないらしい。しょうがないから手作り
   object DotTable {
     def apply(value: Table, lines: LineJoinDefinition*): DotTable =
       Dot.apply[Table, JoinDefinition](value, lines: _*)
   }
+  type LineJoinDefinition = Line[JoinDefinition, Table]
   object LineJoinDefinition {
     def apply(value: JoinDefinition, dot: DotTable): LineJoinDefinition =
       Line.apply[JoinDefinition, Table](value, dot)
