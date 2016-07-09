@@ -99,67 +99,6 @@ class WiringSpec extends FunSpec with Matchers {
   val musicTable = new TableBase("music", Map("id" -> "Int", "artist_id" -> "Int", "name" -> "String"))
   val contentTable = new TableBase("content", Map("id" -> "Int", "music_id" -> "Int", "name" -> "String"))
 
-  it("1テーブルのSQLが出力できる") {
-    val tableTree = new Table(artistTable)
-    val sqlResult = SQL(tableTree.toSql).map(_.toMap).list.apply()
-    sqlResult should equal(List(Map(
-      "artist__id__Int" -> 1,
-      "artist__name__String" -> "水樹奈々"
-    )))
-  }
-
-  it("1対1の関係のJOINができる") {
-    val tableTree = new Table(
-      artistTable,
-      JoinDefinition("id" -> "Int", false, "artist_id" -> "Int", new Table(artistKanaTable))
-    )
-    val sqlResult = SQL(tableTree.toSql).map(_.toMap).list.apply()
-    sqlResult should equal(List(Map(
-      "artist__id__Int" -> 1,
-      "artist__name__String" -> "水樹奈々",
-      "artist_kana__artist_id__Int" -> 1,
-      "artist_kana__kana__String" -> "みずきなな"
-    )))
-  }
-
-  it("1対Nの関係のJOINができる") {
-    val tableTree = new Table(
-      artistTable,
-      JoinDefinition("id" -> "Int", true, "artist_id" -> "Int", new Table(musicTable))
-    )
-    val sqlResult = SQL(tableTree.toSql).map(_.toMap).list.apply()
-    sqlResult should equal(List(Map(
-      "artist__id__Int" -> 1,
-      "artist__name__String" -> "水樹奈々",
-      "music__id__Ints" -> "11,112",
-      "music__artist_id__Int" -> 1,
-      "music__name__Strings" -> "深愛,1innocent starter"
-    )))
-  }
-
-  it("1対Nの関係をネストしてもJOINができる") {
-    val tableTree = new Table(
-      artistTable,
-      JoinDefinition("id" -> "Int", true, "artist_id" -> "Int",
-        new Table(
-          musicTable,
-          JoinDefinition("id" -> "Int", true, "music_id" -> "Int", new Table(contentTable))
-        )
-      )
-    )
-    val sqlResult = SQL(tableTree.toSql).map(_.toMap).list.apply()
-    sqlResult should equal(List(Map(
-      "artist__id__Int" -> 1,
-      "artist__name__String" -> "水樹奈々",
-      "music__id__Ints" -> "11,112",
-      "music__artist_id__Int" -> 1,
-      "music__name__Strings" -> "深愛,1innocent starter",
-      "content__id__Intss" -> "111,2112,1121",
-      "content__music_id__Ints" -> "11,112",
-      "content__name__Stringss" -> "深愛 - ショートVer.,2深愛 - ロングVer.,1innocent starter(inst)"
-    )))
-  }
-
   case class TestCase(title: String, input: JsValue, expected: List[Json])
   val tests = Seq[TestCase](
     TestCase(
