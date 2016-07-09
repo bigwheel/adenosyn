@@ -101,7 +101,7 @@ class WiringSpec extends FunSpec with Matchers {
 
   it("1テーブルのSQLが出力できる") {
     val tableTree = new Table(artistTable)
-    val sqlResult = SQL(table.toSqlFromDot(tableTree)).map(_.toMap).list.apply()
+    val sqlResult = SQL(tableTree.toSql).map(_.toMap).list.apply()
     sqlResult should equal(List(Map(
       "artist__id__Int" -> 1,
       "artist__name__String" -> "水樹奈々"
@@ -113,7 +113,7 @@ class WiringSpec extends FunSpec with Matchers {
       artistTable,
       JoinDefinition("id" -> "Int", false, "artist_id" -> "Int", new Table(artistKanaTable))
     )
-    val sqlResult = SQL(table.toSqlFromDot(tableTree)).map(_.toMap).list.apply()
+    val sqlResult = SQL(tableTree.toSql).map(_.toMap).list.apply()
     sqlResult should equal(List(Map(
       "artist__id__Int" -> 1,
       "artist__name__String" -> "水樹奈々",
@@ -127,7 +127,7 @@ class WiringSpec extends FunSpec with Matchers {
       artistTable,
       JoinDefinition("id" -> "Int", true, "artist_id" -> "Int", new Table(musicTable))
     )
-    val sqlResult = SQL(table.toSqlFromDot(tableTree)).map(_.toMap).list.apply()
+    val sqlResult = SQL(tableTree.toSql).map(_.toMap).list.apply()
     sqlResult should equal(List(Map(
       "artist__id__Int" -> 1,
       "artist__name__String" -> "水樹奈々",
@@ -147,7 +147,7 @@ class WiringSpec extends FunSpec with Matchers {
         )
       )
     )
-    val sqlResult = SQL(table.toSqlFromDot(tableTree)).map(_.toMap).list.apply()
+    val sqlResult = SQL(tableTree.toSql).map(_.toMap).list.apply()
     sqlResult should equal(List(Map(
       "artist__id__Int" -> 1,
       "artist__name__String" -> "水樹奈々",
@@ -338,7 +338,7 @@ class WiringSpec extends FunSpec with Matchers {
   for (test <- tests) {
     it(test.title) {
       val tableTree: Table = toTableStructure(test.input)
-      val queryString: String = table.toSqlFromDot(tableTree)
+      val queryString: String = tableTree.toSql
       val sqlResult: List[Map[String, Any]] = SQL(queryString).map(_.toMap).list.apply()
       val parsedColumnss: List[List[ParsedColumn]] = structureSqlResult(sqlResult)
       def sqlResultToJson: List[Json] = toJsonObj(parsedColumnss, test.input)

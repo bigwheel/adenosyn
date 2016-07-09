@@ -5,34 +5,48 @@ import argonaut._
 import com.github.bigwheel.youseibox.json._
 import scalaz.Scalaz._
 
-/* TODO: tabletreeへのリネームするのはどうだろう */
+/**
+  * TODO: tabletreeへのリネームするのはどうだろう
+  * table tree
+  * 最終的にSQLを作るのが目的
+  */
 package object table {
 
+  /** @deprecated 作って活用しようとしたが結局冗長にすぎて使っていない
+    *            構造をわかりやすく表現するにはいいと思ったんだけど・・・
+    */
   case class Dot[D, L](value: D, lines: Line[L, D]*)
   case class Line[L, D](value: L, dot: Dot[D, L])
 
-  class TableBase(val name: String, val columnNameAndTypeMap: Map[String, String])
-
-  case class Table(
-    val name: String,
-    val columnNameAndTypeMap: Map[String, String],
-    val joinDefinitions: JoinDefinition*
-  ) {
-    def this(tableBase: TableBase, joinDefinitions: JoinDefinition*) = this(
-      tableBase.name, tableBase.columnNameAndTypeMap, joinDefinitions: _*
-    )
-
-    def updateJoinDefinitions(jds: JoinDefinition*): Table =
-      new Table(this.name, this.columnNameAndTypeMap, jds: _*)
-  }
-
-  // Fully Qualified Column Name テーブル名も省略していないカラム名(勝手に命名)
-  private case class FQCN(val tableName: String, columnName: String) {
-    def this(table: Table, columnName: ColumnName) = this(table.name, columnName)
-    val toSql = tableName + "." + columnName
-  }
   private type ColumnName = String
   private type ScalaTypeName = String
+  type SqlQuery = String
+
+  /** @deprecated TableBaseは最終的になくす */
+  class TableBase(val name: String, val columnNameAndTypeMap: Map[ColumnName, ScalaTypeName])
+
+  case class Table(
+    name: String,
+    columnNameAndTypeMap: collection.mutable.Map[ColumnName, ScalaTypeName],
+    var joinDefinitions: Seq[JoinDefinition]
+  ) {
+    /** @deprecated TableBaseは最終的になくす */
+    def this(tableBase: TableBase, joinDefinitions: JoinDefinition*) = this(
+      tableBase.name, collection.mutable.Map(tableBase.columnNameAndTypeMap.toSeq: _*), joinDefinitions
+    )
+
+    private[this] val fullColumnInfos = columnNameAndTypeMap.map { case (columnName, scalaTypeName) =>
+        new FullColumnInfo(this, columnName, scalaTypeName) }.toSet
+
+    def toSql: SqlQuery = toSql(0)._1
+    private[table] def toSql(nestLevel: Int): (SqlQuery, Set[FullColumnInfo]) = {
+      val children = joinDefinitions.zipWithIndex.map { case (jd, i) => jd.toSql(this, s"_$i", nestLevel) }
+      val allFcis = fullColumnInfos ++ children.flatMap(_._2)
+      val sql = s"SELECT ${allFcis.getSelectSqlBody} FROM $name"
+
+      ((sql +: children.map(_._1)).mkString(" "), allFcis)
+    }
+  }
 
   case class JoinDefinition(
     columnOfParentTable: (ColumnName, ScalaTypeName),
@@ -40,11 +54,6 @@ package object table {
     columnOfChildTable: (ColumnName, ScalaTypeName),
     childTable: Table
   ) {
-    def toSql(parentTable: Table, childTable: Table, newChildTableName: String) = {
-      val newChildColumnName = new FullColumnInfo(childTable, columnOfChildTable._1,
-        columnOfChildTable._2).nowColumnName
-      s"ON ${new FQCN(parentTable, columnOfParentTable._1).toSql} = ${new FQCN(newChildTableName, newChildColumnName).toSql}"
-    }
     def groupedBy(childTable: Table, newTableName: String) = if (_1toNRelation) {
       val newFCI = new FullColumnInfo(childTable, columnOfChildTable._1, columnOfChildTable._2).
         updateTableName(newTableName)
@@ -52,8 +61,35 @@ package object table {
     } else
       ""
 
-    def updateChildTable(table: Table) =
-      new JoinDefinition(this.columnOfParentTable, this._1toNRelation, this.columnOfChildTable, table)
+    private[this] def onPart(parentTable: Table, childTable: Table, newChildTableName: String) = {
+      val newChildColumnName = new FullColumnInfo(childTable, columnOfChildTable._1,
+        columnOfChildTable._2).nowColumnName
+      s"ON ${new FQCN(parentTable, columnOfParentTable._1).toSql} = ${new FQCN(newChildTableName, newChildColumnName).toSql}"
+    }
+
+    private[table] def toSql(parentTable: Table, newChildTableName: String, nestLevel: Int):
+    (SqlQuery, Set[FullColumnInfo]) = {
+      val plusLevel = if (_1toNRelation) 1 else 0
+      val (sql, oldFcis) = childTable.toSql(nestLevel + plusLevel)
+      val fcis = oldFcis.map(_.updateTableName("A"))
+      val newFcis = if (_1toNRelation) {
+        fcis.map { fci =>
+          if (fci.originalColumn == new FQCN(childTable, columnOfChildTable._1))
+            fci
+          else
+            fci.bindUp(nestLevel)
+        }
+      } else fcis
+      val newNewFcis = newFcis.map(_.updateTableName(newChildTableName))
+      val shallowNestSql = s"SELECT ${newFcis.getSelectSqlBody} FROM ( $sql ) AS A ${groupedBy(childTable, "A")}"
+      (s"JOIN ( $shallowNestSql ) AS $newChildTableName ${onPart(parentTable, childTable, newChildTableName)}", newNewFcis)
+    }
+  }
+
+  // Fully Qualified Column Name テーブル名も省略していないカラム名(勝手に命名)
+  case class FQCN(val tableName: String, columnName: String) {
+    def this(table: Table, columnName: ColumnName) = this(table.name, columnName)
+    val toSql = tableName + "." + columnName
   }
 
   object FullColumnInfo {
@@ -62,7 +98,7 @@ package object table {
     }
   }
 
-  private class FullColumnInfo(val columnExpression: String, val nowColumnName: String, val originalColumn: FQCN) {
+  class FullColumnInfo(val columnExpression: String, val nowColumnName: String, val originalColumn: FQCN) {
     def this(column: FQCN, nowColumnName: String, originalColumn: FQCN) = this(
       column.toSql, nowColumnName, originalColumn
     )
@@ -82,47 +118,20 @@ package object table {
       new FullColumnInfo(new FQCN(newTableName, this.nowColumnName), this.nowColumnName, this.originalColumn)
   }
 
-  // DotTableからQueryStringを作る
-  def toSqlFromDot(table: Table): String = toSqlFromDot(table, 0)._1
-  private def toSqlFromDot(table: Table, nestLevel: Int): (String, Set[FullColumnInfo]) = {
-    val children = table.joinDefinitions.zipWithIndex.map { case (line, i) => toSqlFromLine(table, line, s"_$i", nestLevel) }
-    val allFcis = table.columnNameAndTypeMap.map { case (columnName, scalaTypeName) =>
-      new FullColumnInfo(table, columnName, scalaTypeName) }.toSet ++ children.flatMap(_._2)
-    val sql = s"SELECT ${allFcis.getSelectSqlBody} FROM ${table.name}"
-
-    ((sql +: children.map(_._1)).mkString(" "), allFcis)
-  }
-  private def toSqlFromLine(parentTable: Table, joinDefinition: JoinDefinition, newChildTableName: String, nestLevel: Int):
-  (String, Set[FullColumnInfo]) = {
-    val childTable = joinDefinition.childTable
-    val plusLevel = if (joinDefinition._1toNRelation) 1 else 0
-    val (sql, oldFcis) = toSqlFromDot(childTable, nestLevel + plusLevel)
-    val fcis = oldFcis.map(_.updateTableName("A"))
-    val newFcis = if (joinDefinition._1toNRelation) {
-      fcis.map { fci =>
-        if (fci.originalColumn == new FQCN(childTable, joinDefinition.columnOfChildTable._1))
-          fci
-        else
-          fci.bindUp(nestLevel)
-      }
-    } else fcis
-    val newNewFcis = newFcis.map(_.updateTableName(newChildTableName))
-    val shallowNestSql = s"SELECT ${newFcis.getSelectSqlBody} FROM ( $sql ) AS A ${joinDefinition.groupedBy(childTable, "A")}"
-    (s"JOIN ( $shallowNestSql ) AS $newChildTableName ${joinDefinition.toSql(parentTable, childTable, newChildTableName)}", newNewFcis)
-  }
-
   def toTableStructure(jsValue: JsValue): Table = {
     def a(jsValue: JsValue): Seq[JoinDefinition] = jsValue match {
-      case JsObject(Some(line), b) =>
+      case JsObject(Some(jd), b) =>
         val c = b.values.flatMap(a)
-        val d: Seq[JoinDefinition] = line.childTable.joinDefinitions
+        val d: Seq[JoinDefinition] = jd.childTable.joinDefinitions
         val e = (c ++ d).toSeq
-        Seq(line.updateChildTable(line.childTable.updateJoinDefinitions(e: _*)))
-      case JsArray(Some(line), b) =>
+        jd.childTable.joinDefinitions = e
+        Seq(jd)
+      case JsArray(Some(jd), b) =>
         val c = a(b)
-        val d: Seq[JoinDefinition] = line.childTable.joinDefinitions
+        val d: Seq[JoinDefinition] = jd.childTable.joinDefinitions
         val e = c ++ d
-        Seq(line.updateChildTable(line.childTable.updateJoinDefinitions(e: _*)))
+        jd.childTable.joinDefinitions = e
+        Seq(jd)
       case JsObject(None, b) =>
         val c = b.values.flatMap(a)
         c.toSeq
