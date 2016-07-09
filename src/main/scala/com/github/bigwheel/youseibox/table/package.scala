@@ -18,8 +18,8 @@ package object table {
   case class Dot[D, L](value: D, lines: Line[L, D]*)
   case class Line[L, D](value: L, dot: Dot[D, L])
 
-  private type ColumnName = String
-  private type ScalaTypeName = String
+  type ColumnName = String
+  type ScalaTypeName = String
   type SqlQuery = String
 
   /** @deprecated TableBaseは最終的になくす */
@@ -35,7 +35,7 @@ package object table {
       tableBase.name, collection.mutable.Map(tableBase.columnNameAndTypeMap.toSeq: _*), joinDefinitions
     )
 
-    private[this] val fullColumnInfos = columnNameAndTypeMap.map { case (columnName, scalaTypeName) =>
+    private[this] def fullColumnInfos = columnNameAndTypeMap.map { case (columnName, scalaTypeName) =>
         new FullColumnInfo(this, columnName, scalaTypeName) }.toSet
 
     def toSql: SqlQuery = toSql(0)._1
@@ -46,6 +46,8 @@ package object table {
 
       ((sql +: children.map(_._1)).mkString(" "), allFcis)
     }
+
+    def digUpTables: Seq[Table] = this +: joinDefinitions.flatMap(_.digUpTables)
   }
 
   case class JoinDefinition(
@@ -84,6 +86,8 @@ package object table {
       val shallowNestSql = s"SELECT ${newFcis.getSelectSqlBody} FROM ( $sql ) AS A ${groupedBy(childTable, "A")}"
       (s"JOIN ( $shallowNestSql ) AS $newChildTableName ${onPart(parentTable, childTable, newChildTableName)}", newNewFcis)
     }
+
+    def digUpTables: Seq[Table] = childTable.digUpTables
   }
 
   // Fully Qualified Column Name テーブル名も省略していないカラム名(勝手に命名)
@@ -121,25 +125,49 @@ package object table {
   def toTableStructure(jsValue: JsValue): Table = {
     def a(jsValue: JsValue): Seq[JoinDefinition] = jsValue match {
       case JsObject(Some(jd), b) =>
-        val c = b.values.flatMap(a)
-        val d: Seq[JoinDefinition] = jd.childTable.joinDefinitions
-        val e = (c ++ d).toSeq
-        jd.childTable.joinDefinitions = e
+        jd.childTable.joinDefinitions = (b.values.flatMap(a) ++ jd.childTable.joinDefinitions).toSeq
         Seq(jd)
       case JsArray(Some(jd), b) =>
-        val c = a(b)
-        val d: Seq[JoinDefinition] = jd.childTable.joinDefinitions
-        val e = c ++ d
-        jd.childTable.joinDefinitions = e
+        jd.childTable.joinDefinitions = a(b) ++ jd.childTable.joinDefinitions
         Seq(jd)
       case JsObject(None, b) =>
-        val c = b.values.flatMap(a)
-        c.toSeq
+        b.values.flatMap(a).toSeq
       // TDOO: arrayでtable definitonが空のテストケースを作れ、それでこの下に追加しろ
-      case _ => Seq.empty
+      case _ =>
+        Seq.empty
     }
-    a(jsValue).head.childTable
+    val h = a(jsValue).head.childTable
+    // こっから肉付けするよ
+    // 返り値はそれぞれ tableName, columnName, scalaTypeName を表す
+    def b(jsValue: JsValue): Seq[(String, String, ScalaTypeName)] = jsValue match {
+      case JsObject(_, p) =>
+        p.values.flatMap(b).toSeq
+      case JsArray(_, e) =>
+        b(e)
+      case JsString(tableName, columnName) =>
+        Seq((tableName, columnName, "String"))
+      case JsInt(tableName, columnName) =>
+        Seq((tableName, columnName, "Int"))
+    }
+    def enumerateColumnsForOnOfJoin(table: Table): Seq[(String, String, ScalaTypeName)] =
+      table.joinDefinitions.flatMap { jd =>
+        Seq(
+          (table.name, jd.columnOfParentTable._1, jd.columnOfParentTable._2),
+          (jd.childTable.name, jd.columnOfChildTable._1, jd.columnOfChildTable._2)
+        ) ++ enumerateColumnsForOnOfJoin(jd.childTable)
+      }
+
+    val columnDetails = b(jsValue) ++ enumerateColumnsForOnOfJoin(h)
+    for (table <- h.digUpTables)
+      for (columnDetail <- columnDetails)
+        if (table.name == columnDetail._1)
+          table.columnNameAndTypeMap += columnDetail._2 -> columnDetail._3
+
+    h
   }
+
+  // TODO: 現在のプログラム上の制約。同じテーブルを複数回JOINすることができない(上で肉付けするときに
+  // どちらのテーブルかわからないから
 
   case class ParsedColumn(tableName: String, columnName: String, dimention: Int, value: Any) {
     // arrayじゃなくても結果返すので注意

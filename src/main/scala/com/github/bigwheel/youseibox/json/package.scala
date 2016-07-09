@@ -5,7 +5,7 @@ import com.github.bigwheel.youseibox.table.JoinDefinition
 // あとでstructureとかそのままのjsonじゃなくてjsonの構造を定義するものだという意味を名前にきちんと込める
 package object json {
 
-  trait JsValue
+  sealed trait JsValue
 
   case class JsObject(
     tableOption: Option[JoinDefinition],

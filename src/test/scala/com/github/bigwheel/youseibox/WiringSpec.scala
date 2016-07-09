@@ -94,10 +94,10 @@ class WiringSpec extends FunSpec with Matchers {
     ipAddress should fullyMatch regex """\A\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\Z"""
   }
 
-  val artistTable = new TableBase("artist", Map("id" -> "Int", "name" -> "String"))
-  val artistKanaTable = new TableBase("artist_kana", Map("artist_id" -> "Int", "kana" -> "String"))
-  val musicTable = new TableBase("music", Map("id" -> "Int", "artist_id" -> "Int", "name" -> "String"))
-  val contentTable = new TableBase("content", Map("id" -> "Int", "music_id" -> "Int", "name" -> "String"))
+  val artistTable = new TableBase("artist", Map())
+  val artistKanaTable = new TableBase("artist_kana", Map())
+  val musicTable = new TableBase("music", Map())
+  val contentTable = new TableBase("content", Map())
 
   case class TestCase(title: String, input: JsValue, expected: List[Json])
   val tests = Seq[TestCase](
