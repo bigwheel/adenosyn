@@ -11,7 +11,20 @@ package object table {
   case class Dot[D, L](value: D, lines: Line[L, D]*)
   case class Line[L, D](value: L, dot: Dot[D, L])
 
-  class Table(val name: String, val columnNameAndTypeMap: Map[String, String])
+  class TableBase(val name: String, val columnNameAndTypeMap: Map[String, String])
+
+  case class Table(
+    val name: String,
+    val columnNameAndTypeMap: Map[String, String],
+    val joinDefinitions: JoinDefinition*
+  ) {
+    def this(tableBase: TableBase, joinDefinitions: JoinDefinition*) = this(
+      tableBase.name, tableBase.columnNameAndTypeMap, joinDefinitions: _*
+    )
+
+    def updateJoinDefinitions(jds: JoinDefinition*): Table =
+      new Table(this.name, this.columnNameAndTypeMap, jds: _*)
+  }
 
   // Fully Qualified Column Name テーブル名も省略していないカラム名(勝手に命名)
   private case class FQCN(val tableName: String, columnName: String) {
@@ -24,7 +37,9 @@ package object table {
   case class JoinDefinition(
     columnOfParentTable: (ColumnName, ScalaTypeName),
     _1toNRelation: Boolean,
-    columnOfChildTable: (ColumnName, ScalaTypeName)) {
+    columnOfChildTable: (ColumnName, ScalaTypeName),
+    childTable: Table
+  ) {
     def toSql(parentTable: Table, childTable: Table, newChildTableName: String) = {
       val newChildColumnName = new FullColumnInfo(childTable, columnOfChildTable._1,
         columnOfChildTable._2).nowColumnName
@@ -36,20 +51,9 @@ package object table {
       s" GROUP BY ${newFCI.nowColumnName}"
     } else
       ""
-  }
 
-  type DotTable = Dot[Table, JoinDefinition]
-  // typeではcompanion objectのエイリアスは作られないらしい。しょうがないから手作り
-  object DotTable {
-    def apply(value: Table, lines: LineJoinDefinition*): DotTable =
-      Dot.apply[Table, JoinDefinition](value, lines: _*)
-  }
-  type LineJoinDefinition = Line[JoinDefinition, Table]
-  object LineJoinDefinition {
-    def apply(value: JoinDefinition, dot: DotTable): LineJoinDefinition =
-      Line.apply[JoinDefinition, Table](value, dot)
-    def unapply(arg: LineJoinDefinition): Option[(JoinDefinition, DotTable)] =
-      Line.unapply[JoinDefinition, Table](arg)
+    def updateChildTable(table: Table) =
+      new JoinDefinition(this.columnOfParentTable, this._1toNRelation, this.columnOfChildTable, table)
   }
 
   object FullColumnInfo {
@@ -79,22 +83,20 @@ package object table {
   }
 
   // DotTableからQueryStringを作る
-  def toSqlFromDot(dot: DotTable): String = toSqlFromDot(dot, 0)._1
-  private def toSqlFromDot(dot: DotTable, nestLevel: Int): (String, Set[FullColumnInfo]) = {
-    val table = dot.value
-    val children = dot.lines.zipWithIndex.map { case (line, i) => toSqlFromLine(table, line, s"_$i", nestLevel) }
+  def toSqlFromDot(table: Table): String = toSqlFromDot(table, 0)._1
+  private def toSqlFromDot(table: Table, nestLevel: Int): (String, Set[FullColumnInfo]) = {
+    val children = table.joinDefinitions.zipWithIndex.map { case (line, i) => toSqlFromLine(table, line, s"_$i", nestLevel) }
     val allFcis = table.columnNameAndTypeMap.map { case (columnName, scalaTypeName) =>
       new FullColumnInfo(table, columnName, scalaTypeName) }.toSet ++ children.flatMap(_._2)
     val sql = s"SELECT ${allFcis.getSelectSqlBody} FROM ${table.name}"
 
     ((sql +: children.map(_._1)).mkString(" "), allFcis)
   }
-  private def toSqlFromLine(parentTable: Table, line: LineJoinDefinition, newChildTableName: String, nestLevel: Int):
+  private def toSqlFromLine(parentTable: Table, joinDefinition: JoinDefinition, newChildTableName: String, nestLevel: Int):
   (String, Set[FullColumnInfo]) = {
-    val joinDefinition = line.value
-    val childTable = line.dot.value
+    val childTable = joinDefinition.childTable
     val plusLevel = if (joinDefinition._1toNRelation) 1 else 0
-    val (sql, oldFcis) = toSqlFromDot(line.dot, nestLevel + plusLevel)
+    val (sql, oldFcis) = toSqlFromDot(childTable, nestLevel + plusLevel)
     val fcis = oldFcis.map(_.updateTableName("A"))
     val newFcis = if (joinDefinition._1toNRelation) {
       fcis.map { fci =>
@@ -109,25 +111,25 @@ package object table {
     (s"JOIN ( $shallowNestSql ) AS $newChildTableName ${joinDefinition.toSql(parentTable, childTable, newChildTableName)}", newNewFcis)
   }
 
-  def toTableStructure(jsValue: JsValue): DotTable = {
-    def a(jsValue: JsValue): Seq[LineJoinDefinition] = jsValue match {
+  def toTableStructure(jsValue: JsValue): Table = {
+    def a(jsValue: JsValue): Seq[JoinDefinition] = jsValue match {
       case JsObject(Some(line), b) =>
         val c = b.values.flatMap(a)
-        val d: Seq[LineJoinDefinition] = line.dot.lines
+        val d: Seq[JoinDefinition] = line.childTable.joinDefinitions
         val e = (c ++ d).toSeq
-        Seq(LineJoinDefinition(line.value, DotTable(line.dot.value, e: _*)))
+        Seq(line.updateChildTable(line.childTable.updateJoinDefinitions(e: _*)))
       case JsArray(Some(line), b) =>
         val c = a(b)
-        val d: Seq[LineJoinDefinition] = line.dot.lines
+        val d: Seq[JoinDefinition] = line.childTable.joinDefinitions
         val e = c ++ d
-        Seq(LineJoinDefinition(line.value, DotTable(line.dot.value, e: _*)))
+        Seq(line.updateChildTable(line.childTable.updateJoinDefinitions(e: _*)))
       case JsObject(None, b) =>
         val c = b.values.flatMap(a)
         c.toSeq
       // TDOO: arrayでtable definitonが空のテストケースを作れ、それでこの下に追加しろ
       case _ => Seq.empty
     }
-    a(jsValue).head.dot
+    a(jsValue).head.childTable
   }
 
   case class ParsedColumn(tableName: String, columnName: String, dimention: Int, value: Any) {

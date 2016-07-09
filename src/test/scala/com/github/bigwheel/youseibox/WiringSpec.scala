@@ -94,13 +94,13 @@ class WiringSpec extends FunSpec with Matchers {
     ipAddress should fullyMatch regex """\A\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\Z"""
   }
 
-  val artistTable = new Table("artist", Map("id" -> "Int", "name" -> "String"))
-  val artistKanaTable = new Table("artist_kana", Map("artist_id" -> "Int", "kana" -> "String"))
-  val musicTable = new Table("music", Map("id" -> "Int", "artist_id" -> "Int", "name" -> "String"))
-  val contentTable = new Table("content", Map("id" -> "Int", "music_id" -> "Int", "name" -> "String"))
+  val artistTable = new TableBase("artist", Map("id" -> "Int", "name" -> "String"))
+  val artistKanaTable = new TableBase("artist_kana", Map("artist_id" -> "Int", "kana" -> "String"))
+  val musicTable = new TableBase("music", Map("id" -> "Int", "artist_id" -> "Int", "name" -> "String"))
+  val contentTable = new TableBase("content", Map("id" -> "Int", "music_id" -> "Int", "name" -> "String"))
 
   it("1テーブルのSQLが出力できる") {
-    val tableTree = DotTable(artistTable)
+    val tableTree = new Table(artistTable)
     val sqlResult = SQL(table.toSqlFromDot(tableTree)).map(_.toMap).list.apply()
     sqlResult should equal(List(Map(
       "artist__id__Int" -> 1,
@@ -109,12 +109,9 @@ class WiringSpec extends FunSpec with Matchers {
   }
 
   it("1対1の関係のJOINができる") {
-    val tableTree = DotTable(
+    val tableTree = new Table(
       artistTable,
-      LineJoinDefinition(
-        JoinDefinition("id" -> "Int", false, "artist_id" -> "Int"),
-        DotTable(artistKanaTable)
-      )
+      JoinDefinition("id" -> "Int", false, "artist_id" -> "Int", new Table(artistKanaTable))
     )
     val sqlResult = SQL(table.toSqlFromDot(tableTree)).map(_.toMap).list.apply()
     sqlResult should equal(List(Map(
@@ -126,12 +123,9 @@ class WiringSpec extends FunSpec with Matchers {
   }
 
   it("1対Nの関係のJOINができる") {
-    val tableTree = DotTable(
+    val tableTree = new Table(
       artistTable,
-      LineJoinDefinition(
-        JoinDefinition("id" -> "Int", true, "artist_id" -> "Int"),
-        DotTable(musicTable)
-      )
+      JoinDefinition("id" -> "Int", true, "artist_id" -> "Int", new Table(musicTable))
     )
     val sqlResult = SQL(table.toSqlFromDot(tableTree)).map(_.toMap).list.apply()
     sqlResult should equal(List(Map(
@@ -144,16 +138,12 @@ class WiringSpec extends FunSpec with Matchers {
   }
 
   it("1対Nの関係をネストしてもJOINができる") {
-    val tableTree = DotTable(
+    val tableTree = new Table(
       artistTable,
-      LineJoinDefinition(
-        JoinDefinition("id" -> "Int", true, "artist_id" -> "Int"),
-        DotTable(
+      JoinDefinition("id" -> "Int", true, "artist_id" -> "Int",
+        new Table(
           musicTable,
-          LineJoinDefinition(
-            JoinDefinition("id" -> "Int", true, "music_id" -> "Int"),
-            DotTable(contentTable)
-          )
+          JoinDefinition("id" -> "Int", true, "music_id" -> "Int", new Table(contentTable))
         )
       )
     )
@@ -175,7 +165,7 @@ class WiringSpec extends FunSpec with Matchers {
     TestCase(
       "最も単純なjsonオブジェクトを組み立てられる",
       JsObject(
-        LineJoinDefinition(null, DotTable(artistTable)).some,
+        JoinDefinition(null, true, null, new Table(artistTable)).some,
         Map[String, JsValue](
           "name" -> JsString("artist", "name")
         )
@@ -185,7 +175,7 @@ class WiringSpec extends FunSpec with Matchers {
     TestCase(
       "複数プロパティのjsonオブジェクトを組み立てられる",
       JsObject(
-        LineJoinDefinition(null, DotTable(artistTable)).some,
+        JoinDefinition(null, true, null, new Table(artistTable)).some,
         Map[String, JsValue](
           "id" -> JsInt("artist", "id"),
           "name" -> JsString("artist", "name")
@@ -196,14 +186,11 @@ class WiringSpec extends FunSpec with Matchers {
     TestCase(
       "単純チェインのテーブルJOINでjsonオブジェクトを組み立てられる",
       JsObject(
-        LineJoinDefinition(
-          null,
-          DotTable(
+        JoinDefinition(
+          null, true, null,
+          new Table(
             artistTable,
-            LineJoinDefinition(
-              JoinDefinition("id" -> "Int", false, "artist_id" -> "Int"),
-              DotTable(artistKanaTable)
-            )
+            JoinDefinition("id" -> "Int", false, "artist_id" -> "Int", new Table(artistKanaTable))
           )
         ).some,
         Map[String, JsValue](
@@ -216,7 +203,7 @@ class WiringSpec extends FunSpec with Matchers {
     TestCase(
       "単純にjsonオブジェクトがネストしていても組み立てられる",
       JsObject(
-        LineJoinDefinition(null, DotTable(artistTable)).some,
+        JoinDefinition(null, true, null, new Table(artistTable)).some,
         Map[String, JsValue](
           "name" -> JsString("artist", "name"),
           "nest" -> JsObject(
@@ -235,23 +222,19 @@ class WiringSpec extends FunSpec with Matchers {
     TestCase(
       "ネストと直列JOINが両方あっても組み立てられる",
       JsObject(
-        LineJoinDefinition(
-          null,
-          DotTable(
+        JoinDefinition(
+          null, true, null,
+          new Table(
             artistTable,
-            LineJoinDefinition(
-              JoinDefinition("id" -> "Int", false, "artist_id" -> "Int"),
-              DotTable(artistKanaTable)
-            )
+            JoinDefinition("id" -> "Int", false, "artist_id" -> "Int", new Table(artistKanaTable))
           )
         ).some,
         Map[String, JsValue](
           "name" -> JsString("artist", "name"),
           "kana" -> JsString("artist_kana", "kana"),
           "musics" -> JsArray(
-            LineJoinDefinition(
-              JoinDefinition("id" -> "Int", true, "artist_id" -> "Int"),
-              DotTable(musicTable)
+            JoinDefinition("id" -> "Int", true, "artist_id" -> "Int",
+              new Table(musicTable)
             ).some,
             JsString("music", "name")
           )
@@ -266,13 +249,12 @@ class WiringSpec extends FunSpec with Matchers {
     TestCase(
       "ネスト内からネスト外のカラムを参照できる",
       JsObject(
-        LineJoinDefinition(null, DotTable(artistTable)).some,
+        JoinDefinition(null, true, null, new Table(artistTable)).some,
         Map[String, JsValue](
           "name" -> JsString("artist", "name"),
           "musics" -> JsArray(
-            LineJoinDefinition(
-              JoinDefinition("id" -> "Int", true, "artist_id" -> "Int"),
-              DotTable(musicTable)
+            JoinDefinition("id" -> "Int", true, "artist_id" -> "Int",
+              new Table(musicTable)
             ).some,
             JsInt("artist", "id")
           )
@@ -286,13 +268,12 @@ class WiringSpec extends FunSpec with Matchers {
     TestCase(
       "jsonオブジェクトが配列の中だとしても組み立てられる",
       JsObject(
-        LineJoinDefinition(null, DotTable(artistTable)).some,
+        JoinDefinition(null, true, null, new Table(artistTable)).some,
         Map[String, JsValue](
           "name" -> JsString("artist", "name"),
           "musics" -> JsArray(
-            LineJoinDefinition(
-              JoinDefinition("id" -> "Int", true, "artist_id" -> "Int"),
-              DotTable(musicTable)
+            JoinDefinition("id" -> "Int", true, "artist_id" -> "Int",
+              new Table(musicTable)
             ).some,
             JsObject(None, Map[String, JsValue]("name" -> JsString("music", "name")))
           )
@@ -306,22 +287,20 @@ class WiringSpec extends FunSpec with Matchers {
     TestCase(
       "ネストが二重でも組み立てられる",
       JsObject(
-        LineJoinDefinition(null, DotTable(artistTable)).some,
+        JoinDefinition(null, true, null, new Table(artistTable)).some,
         Map[String, JsValue](
           "name" -> JsString("artist", "name"),
           "musics" -> JsArray(
-            LineJoinDefinition(
-              JoinDefinition("id" -> "Int", true, "artist_id" -> "Int"),
-              DotTable(musicTable)
+            JoinDefinition("id" -> "Int", true, "artist_id" -> "Int",
+              new Table(musicTable)
             ).some,
             JsObject(
               None,
               Map[String, JsValue](
                 "name" -> JsString("music", "name"),
                 "contents" -> JsArray(
-                  LineJoinDefinition(
-                    JoinDefinition("id" -> "Int", true, "music_id" -> "Int"),
-                    DotTable(contentTable)
+                  JoinDefinition("id" -> "Int", true, "music_id" -> "Int",
+                    new Table(contentTable)
                   ).some,
                   JsObject(
                     None,
@@ -358,7 +337,7 @@ class WiringSpec extends FunSpec with Matchers {
 
   for (test <- tests) {
     it(test.title) {
-      val tableTree: DotTable = toTableStructure(test.input)
+      val tableTree: Table = toTableStructure(test.input)
       val queryString: String = table.toSqlFromDot(tableTree)
       val sqlResult: List[Map[String, Any]] = SQL(queryString).map(_.toMap).list.apply()
       val parsedColumnss: List[List[ParsedColumn]] = structureSqlResult(sqlResult)
@@ -369,13 +348,12 @@ class WiringSpec extends FunSpec with Matchers {
 
   it("テーブル構造が破綻していると例外が出る") {
     val jsValue = JsObject(
-      LineJoinDefinition(null, DotTable(artistTable)).some,
+      JoinDefinition(null, true, null, new Table(artistTable)).some,
       Map[String, JsValue](
         "name" -> JsString("artist", "name"),
         "musics" -> JsArray(
-          LineJoinDefinition(
-            JoinDefinition("id" -> "Int", false, "artist_id" -> "Int"),
-            DotTable(musicTable)
+          JoinDefinition("id" -> "Int", false, "artist_id" -> "Int",
+            new Table(musicTable)
           ).some,
           JsObject(None, Map[String, JsValue]("name" -> JsString("music", "name")))
         )
