@@ -22,18 +22,9 @@ package object table {
   type ScalaTypeName = String
   type SqlQuery = String
 
-  /** @deprecated TableBaseは最終的になくす */
-  class TableBase(val name: String, val columnNameAndTypeMap: Map[ColumnName, ScalaTypeName])
-
-  case class Table(
-    name: String,
-    columnNameAndTypeMap: collection.mutable.Map[ColumnName, ScalaTypeName],
-    var joinDefinitions: Seq[JoinDefinition]
-  ) {
-    /** @deprecated TableBaseは最終的になくす */
-    def this(tableBase: TableBase, joinDefinitions: JoinDefinition*) = this(
-      tableBase.name, collection.mutable.Map(tableBase.columnNameAndTypeMap.toSeq: _*), joinDefinitions
-    )
+  case class Table(name: String, var joinDefinitions: Seq[JoinDefinition]) {
+    def this(name: String) = this(name, Seq())
+    val columnNameAndTypeMap = collection.mutable.Map[ColumnName, ScalaTypeName]()
 
     private[this] def fullColumnInfos = columnNameAndTypeMap.map { case (columnName, scalaTypeName) =>
         new FullColumnInfo(this, columnName, scalaTypeName) }.toSet
