@@ -186,25 +186,6 @@ class WiringSpec extends FunSpec with Matchers {
       ))
     ),
     TestCase(
-      "ネスト内からネスト外のカラムを参照できる",
-      JsObject(
-        JoinDefinition(null, true, null, new Table(artistTable)).some,
-        Map[String, JsValue](
-          "name" -> JsString("artist", "name"),
-          "musics" -> JsArray(
-            JoinDefinition("id" -> "Int", true, "artist_id" -> "Int",
-              new Table(musicTable)
-            ).some,
-            JsInt("artist", "id")
-          )
-        )
-      ),
-      List(Json(
-        "name" := "水樹奈々",
-        "musics" := Json.array(jNumber(1), jNumber(1))
-      ))
-    ),
-    TestCase(
       "jsonオブジェクトが配列の中だとしても組み立てられる",
       JsObject(
         JoinDefinition(null, true, null, new Table(artistTable)).some,
@@ -221,6 +202,31 @@ class WiringSpec extends FunSpec with Matchers {
       List(Json(
         "name" := "水樹奈々",
         "musics" := Json.array(Json("name" := "深愛"), Json("name" := "innocent starter"))
+      ))
+    ),
+    TestCase(
+      "ネスト内からネスト外のカラムを参照できる",
+      JsObject(
+        JoinDefinition(null, true, null, new Table(artistTable)).some,
+        Map[String, JsValue](
+          "name" -> JsString("artist", "name"),
+          "musics" -> JsArray(
+            JoinDefinition("id" -> "Int", true, "artist_id" -> "Int",
+              new Table(musicTable)
+            ).some,
+            JsObject(None, Map[String, JsValue](
+              "name" -> JsString("music", "name"),
+              "artist_id" -> JsInt("artist", "id")
+            ))
+          )
+        )
+      ),
+      List(Json(
+        "name" := "水樹奈々",
+        "musics" := Json.array(
+          Json("name" := "深愛", "artist_id" := 1),
+          Json("name" := "innocent starter", "artist_id" := 1)
+        )
       ))
     ),
     TestCase(
@@ -284,6 +290,20 @@ class WiringSpec extends FunSpec with Matchers {
       sqlResultToJson should equal(test.expected)
     }
   }
+
+  // TODO: ↓でエラーが起こるので、そのエラーハンドリングをもっとわかりやすくする
+  JsObject(
+    JoinDefinition(null, true, null, new Table(artistTable)).some,
+    Map[String, JsValue](
+      "name" -> JsString("artist", "name"),
+      "musics" -> JsArray(
+        JoinDefinition("id" -> "Int", true, "artist_id" -> "Int",
+          new Table(musicTable)
+        ).some,
+        JsInt("artist", "id")
+      )
+    )
+  )
 
   it("テーブル構造が破綻していると例外が出る") {
     val jsValue = JsObject(
