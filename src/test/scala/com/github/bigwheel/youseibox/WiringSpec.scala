@@ -277,7 +277,7 @@ class WiringSpec extends FunSpec with Matchers {
   for (test <- tests) {
     it(test.title) {
       val tableTree: Table = toTableStructure(test.input)
-      val queryString: String = tableTree.toSql
+      val queryString: SqlQuery = tableTree.toSql
       val sqlResult: List[Map[String, Any]] = SQL(queryString).map(_.toMap).list.apply()
       val parsedColumnss: List[List[ParsedColumn]] = structureSqlResult(sqlResult)
       def sqlResultToJson: List[Json] = toJsonObj(parsedColumnss, test.input)
