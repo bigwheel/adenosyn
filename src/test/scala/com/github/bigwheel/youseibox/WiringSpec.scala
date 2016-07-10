@@ -277,16 +277,12 @@ class WiringSpec extends FunSpec with Matchers {
 
   for (test <- tests) {
     it(test.title) {
-      val tableTree: Table = toTableStructure(test.input)
-      val queryString: SqlQuery = tableTree.toSql
-      val sqlResult: List[Map[String, Any]] = SQL(queryString).map(_.toMap).list.apply()
-      val parsedColumnss: List[List[ParsedColumn]] = structureSqlResult(sqlResult)
-      def sqlResultToJson: List[Json] = toJsonObj(parsedColumnss, test.input)
-      sqlResultToJson should equal(test.expected)
+      fetchJsonResult(test.input) should equal(test.expected)
     }
   }
 
   // TODO: ↓でエラーが起こるので、そのエラーハンドリングをもっとわかりやすくする
+  // 次やる作業: Tableクラスが定義・編集中両方で兼任する必要がないから分離してjsonDefinitionsをvarじゃなくする
   JsObject(
     JoinDefinition(null, true, null, new Table("artist")).some,
     Map[String, JsValue](
@@ -312,9 +308,9 @@ class WiringSpec extends FunSpec with Matchers {
           JsObject(None, Map[String, JsValue]("name" -> JsString("music", "name")))
         )
       )
-    )
+    ) // TODO: 例外条件を絞ってこっちが意図して例外を出すようにする
     a [Exception] should be thrownBy {
-      toTableStructure(jsValue)
+      fetchJsonResult(jsValue)
     }
   }
 

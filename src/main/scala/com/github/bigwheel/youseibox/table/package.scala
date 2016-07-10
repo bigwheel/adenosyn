@@ -4,6 +4,8 @@ import argonaut.Argonaut._
 import argonaut._
 import com.github.bigwheel.youseibox.json._
 import scalaz.Scalaz._
+import scalikejdbc.DBSession
+import scalikejdbc.SQL
 
 /**
   * TODO: tabletreeへのリネームするのはどうだろう
@@ -12,15 +14,24 @@ import scalaz.Scalaz._
   */
 package object table {
 
+  def fetchJsonResult(jsValue: JsValue)(implicit session: DBSession): List[Json] = {
+    val tableTree: Table = toTableStructure(jsValue)
+    val queryString: SqlQuery = tableTree.toSql
+    val sqlResult: List[Map[String, Any]] = SQL(queryString).map(_.toMap).list.apply()
+    val parsedColumnss: List[List[ParsedColumn]] = structureSqlResult(sqlResult)
+    def sqlResultToJson: List[Json] = toJsonObj(parsedColumnss, jsValue)
+    sqlResultToJson
+  }
+
   /** @deprecated 作って活用しようとしたが結局冗長にすぎて使っていない
     *            構造をわかりやすく表現するにはいいと思ったんだけど・・・
     */
   case class Dot[D, L](value: D, lines: Line[L, D]*)
   case class Line[L, D](value: L, dot: Dot[D, L])
 
-  type ColumnName = String
-  type ScalaTypeName = String
-  type SqlQuery = String
+  private type ColumnName = String
+  private type ScalaTypeName = String
+  private type SqlQuery = String
 
   case class Table(name: String, var joinDefinitions: Seq[JoinDefinition]) {
     def this(name: String) = this(name, Seq())
@@ -113,7 +124,7 @@ package object table {
       new FullColumnInfo(new FQCN(newTableName, this.nowColumnName), this.nowColumnName, this.originalColumn)
   }
 
-  def toTableStructure(jsValue: JsValue): Table = {
+  private def toTableStructure(jsValue: JsValue): Table = {
     def a(jsValue: JsValue): Seq[JoinDefinition] = jsValue match {
       case JsObject(Some(jd), b) =>
         jd.childTable.joinDefinitions = (b.values.flatMap(a) ++ jd.childTable.joinDefinitions).toSeq
@@ -160,7 +171,7 @@ package object table {
   // TODO: 現在のプログラム上の制約。同じテーブルを複数回JOINすることができない(上で肉付けするときに
   // どちらのテーブルかわからないから
 
-  case class ParsedColumn(tableName: String, columnName: String, dimention: Int, value: Any) {
+  private case class ParsedColumn(tableName: String, columnName: String, dimention: Int, value: Any) {
     // arrayじゃなくても結果返すので注意
     def drill(index: Int): ParsedColumn = value match {
       case a: Array[_] => new ParsedColumn(tableName, columnName, dimention - 1, a(index))
@@ -173,7 +184,7 @@ package object table {
     }
   }
 
-  def structureSqlResult(sqlResult: List[Map[String, Any]]): List[List[ParsedColumn]] = {
+  private def structureSqlResult(sqlResult: List[Map[String, Any]]): List[List[ParsedColumn]] = {
     val a = for (row <- sqlResult) yield {
       for ((columnName, value) <- row) yield {
         val result = """\A(.+)__(.+?)__(.+?)(s*)\Z""".r("tableName", "columnName", "type", "dimention").
@@ -195,7 +206,7 @@ package object table {
     a.map(_.toList)
   }
 
-  def toJsonObj(parsedColumnss: List[List[ParsedColumn]] , jsonStructure: JsValue): List[Json] = {
+  private def toJsonObj(parsedColumnss: List[List[ParsedColumn]] , jsonStructure: JsValue): List[Json] = {
     def f(row: List[ParsedColumn], jsonTree: JsValue): Json = {
       def getColumn(tableName: String, columnName: String): ParsedColumn =
         row.find(c => c.tableName == tableName && c.columnName == columnName).get
