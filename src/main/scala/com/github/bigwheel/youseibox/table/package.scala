@@ -15,7 +15,7 @@ import scalikejdbc.SQL
 package object table {
 
   def fetchJsonResult(jsValue: JsValue)(implicit session: DBSession): List[Json] = {
-    val tableTree: Table = toTableStructure(jsValue)
+    val tableTree: TableForConstruct = toTableStructure(jsValue)
     val queryString: SqlQuery = tableTree.toSql
     val sqlResult: List[Map[String, Any]] = SQL(queryString).map(_.toMap).list.apply()
     val parsedColumnss: List[List[ParsedColumn]] = structureSqlResult(sqlResult)
@@ -29,11 +29,9 @@ package object table {
   case class Dot[D, L](value: D, lines: Line[L, D]*)
   case class Line[L, D](value: L, dot: Dot[D, L])
 
-  private type ColumnName = String
-  private type ScalaTypeName = String
   private type SqlQuery = String
 
-  case class Table(name: String, var joinDefinitions: Seq[JoinDefinition]) {
+  case class TableForConstruct(name: String, var joinDefinitions: Seq[JoinDefinitionForConstruct]) {
     def this(name: String) = this(name, Seq())
     val columnNameAndTypeMap = collection.mutable.Map[ColumnName, ScalaTypeName]()
 
@@ -49,29 +47,29 @@ package object table {
       ((sql +: children.map(_._1)).mkString(" "), allFcis)
     }
 
-    def digUpTables: Seq[Table] = this +: joinDefinitions.flatMap(_.digUpTables)
+    def digUpTables: Seq[TableForConstruct] = this +: joinDefinitions.flatMap(_.digUpTables)
   }
 
-  case class JoinDefinition(
+  case class JoinDefinitionForConstruct(
     columnOfParentTable: (ColumnName, ScalaTypeName),
     _1toNRelation: Boolean,
     columnOfChildTable: (ColumnName, ScalaTypeName),
-    childTable: Table
+    childTable: TableForConstruct
   ) {
-    def groupedBy(childTable: Table, newTableName: String) = if (_1toNRelation) {
+    def groupedBy(childTable: TableForConstruct, newTableName: String) = if (_1toNRelation) {
       val newFCI = new FullColumnInfo(childTable, columnOfChildTable._1, columnOfChildTable._2).
         updateTableName(newTableName)
       s" GROUP BY ${newFCI.nowColumnName}"
     } else
       ""
 
-    private[this] def onPart(parentTable: Table, childTable: Table, newChildTableName: String) = {
+    private[this] def onPart(parentTable: TableForConstruct, childTable: TableForConstruct, newChildTableName: String) = {
       val newChildColumnName = new FullColumnInfo(childTable, columnOfChildTable._1,
         columnOfChildTable._2).nowColumnName
       s"ON ${new FQCN(parentTable, columnOfParentTable._1).toSql} = ${new FQCN(newChildTableName, newChildColumnName).toSql}"
     }
 
-    private[table] def toSql(parentTable: Table, newChildTableName: String, nestLevel: Int):
+    private[table] def toSql(parentTable: TableForConstruct, newChildTableName: String, nestLevel: Int):
     (SqlQuery, Set[FullColumnInfo]) = {
       val plusLevel = if (_1toNRelation) 1 else 0
       val (sql, oldFcis) = childTable.toSql(nestLevel + plusLevel)
@@ -89,12 +87,12 @@ package object table {
       (s"JOIN ( $shallowNestSql ) AS $newChildTableName ${onPart(parentTable, childTable, newChildTableName)}", newNewFcis)
     }
 
-    def digUpTables: Seq[Table] = childTable.digUpTables
+    def digUpTables: Seq[TableForConstruct] = childTable.digUpTables
   }
 
   // Fully Qualified Column Name テーブル名も省略していないカラム名(勝手に命名)
   case class FQCN(val tableName: String, columnName: String) {
-    def this(table: Table, columnName: ColumnName) = this(table.name, columnName)
+    def this(table: TableForConstruct, columnName: ColumnName) = this(table.name, columnName)
     val toSql = tableName + "." + columnName
   }
 
@@ -108,7 +106,7 @@ package object table {
     def this(column: FQCN, nowColumnName: String, originalColumn: FQCN) = this(
       column.toSql, nowColumnName, originalColumn
     )
-    def this(table: Table, columnName: ColumnName, scalaTypeName: ScalaTypeName) = this(
+    def this(table: TableForConstruct, columnName: ColumnName, scalaTypeName: ScalaTypeName) = this(
       new FQCN(table, columnName), s"${table.name}__${columnName}__$scalaTypeName",
       new FQCN(table, columnName))
 
@@ -124,8 +122,8 @@ package object table {
       new FullColumnInfo(new FQCN(newTableName, this.nowColumnName), this.nowColumnName, this.originalColumn)
   }
 
-  private def toTableStructure(jsValue: JsValue): Table = {
-    def a(jsValue: JsValue): Seq[JoinDefinition] = jsValue match {
+  private def toTableStructure(jsValue: JsValue): TableForConstruct = {
+    def a(jsValue: JsValue): Seq[JoinDefinitionForConstruct] = jsValue match {
       case JsObject(Some(jd), b) =>
         jd.childTable.joinDefinitions = (b.values.flatMap(a) ++ jd.childTable.joinDefinitions).toSeq
         Seq(jd)
@@ -151,7 +149,7 @@ package object table {
       case JsInt(tableName, columnName) =>
         Seq((tableName, columnName, "Int"))
     }
-    def enumerateColumnsForOnOfJoin(table: Table): Seq[(String, String, ScalaTypeName)] =
+    def enumerateColumnsForOnOfJoin(table: TableForConstruct): Seq[(String, String, ScalaTypeName)] =
       table.joinDefinitions.flatMap { jd =>
         Seq(
           (table.name, jd.columnOfParentTable._1, jd.columnOfParentTable._2),
