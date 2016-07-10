@@ -15,25 +15,57 @@ import scalikejdbc.SQL
 package object table {
 
   def fetchJsonResult(jsValue: JsValue)(implicit session: DBSession): List[Json] = {
-    val tableTree: TableForConstruct = toTableStructure(jsValue)
-    val queryString: SqlQuery = tableTree.toSql
+    val tableTree: Table = digAndMergeTableTree(jsValue)
+    val columnDetails = enumerateUseColumnsByTable(jsValue, tableTree)
+    val newTree = appendColumnInfoToTree(tableTree, columnDetails)
+
+    val queryString: SqlQuery = newTree.toSql
     val sqlResult: List[Map[String, Any]] = SQL(queryString).map(_.toMap).list.apply()
     val parsedColumnss: List[List[ParsedColumn]] = structureSqlResult(sqlResult)
     def sqlResultToJson: List[Json] = toJsonObj(parsedColumnss, jsValue)
     sqlResultToJson
   }
 
-  /** @deprecated 作って活用しようとしたが結局冗長にすぎて使っていない
-    *            構造をわかりやすく表現するにはいいと思ったんだけど・・・
-    */
-  case class Dot[D, L](value: D, lines: Line[L, D]*)
-  case class Line[L, D](value: L, dot: Dot[D, L])
+  private def digAndMergeTableTree(jsValue: JsValue): Table = {
+    def f(jsValue: JsValue): Seq[JoinDefinitionBase] = jsValue match {
+      case JsObject(Some(jd), properties) =>
+        val newJds = jd.childSide.joinDefinitions ++ properties.values.flatMap(f)
+        Seq(jd.copy(new Table(jd.childSide.name, newJds: _*)))
+      case JsArray(Some(jd), elem) =>
+        val newJds = jd.childSide.joinDefinitions ++ f(elem)
+        Seq(jd.copy(new Table(jd.childSide.name, newJds: _*)))
+      case JsObject(None, properties) =>
+        properties.values.flatMap(f).toSeq
+      // TDOO: arrayでtable definitonが空のテストケースを作れ、それでこの下に追加しろ
+      case _ =>
+        Seq.empty
+    }
+    f(jsValue).head.childSide
+  }
+
+  private type TableName = String
 
   private type SqlQuery = String
 
-  case class TableForConstruct(name: String, var joinDefinitions: Seq[JoinDefinitionForConstruct]) {
-    def this(name: String) = this(name, Seq())
-    val columnNameAndTypeMap = collection.mutable.Map[ColumnName, ScalaTypeName]()
+  private def appendColumnInfoToTree(tableTree: Table,
+    columnDetails: Map[TableName, Map[ColumnName, ScalaTypeName]]): TableForConstruct = {
+    def f(table: Table): TableForConstruct = {
+      val columnsForThisTable = columnDetails(table.name)
+      new TableForConstruct(table.name, table.joinDefinitions.map(g), columnsForThisTable)
+    }
+    def g(jd: JoinDefinitionBase): JoinDefinitionForConstruct = jd match {
+      case jd : JoinDefinition =>
+        new JoinDefinitionForConstruct(jd.parentSideColumn, jd.groupBy, jd.childSideColumn, f(jd.childSide))
+      case _ =>
+        throw new IllegalStateException("ここにJoinDefinition派生クラス以外がくるはずはない")
+    }
+    f(tableTree)
+  }
+
+  private class TableForConstruct(
+    val name: TableName,
+    joinDefinitions: Seq[JoinDefinitionForConstruct],
+    columnNameAndTypeMap: Map[ColumnName, ScalaTypeName]) {
 
     private[this] def fullColumnInfos = columnNameAndTypeMap.map { case (columnName, scalaTypeName) =>
         new FullColumnInfo(this, columnName, scalaTypeName) }.toSet
@@ -46,63 +78,60 @@ package object table {
 
       ((sql +: children.map(_._1)).mkString(" "), allFcis)
     }
-
-    def digUpTables: Seq[TableForConstruct] = this +: joinDefinitions.flatMap(_.digUpTables)
   }
 
-  case class JoinDefinitionForConstruct(
-    columnOfParentTable: (ColumnName, ScalaTypeName),
-    _1toNRelation: Boolean,
-    columnOfChildTable: (ColumnName, ScalaTypeName),
-    childTable: TableForConstruct
+  private class JoinDefinitionForConstruct(
+    parentSideColumn: (ColumnName, ScalaTypeName),
+    groupBy: Boolean,
+    childSideColumn: (ColumnName, ScalaTypeName),
+    childSide: TableForConstruct
   ) {
-    def groupedBy(childTable: TableForConstruct, newTableName: String) = if (_1toNRelation) {
-      val newFCI = new FullColumnInfo(childTable, columnOfChildTable._1, columnOfChildTable._2).
+
+    private[this] def groupedBy(childTable: TableForConstruct, newTableName: String) = if (groupBy) {
+      val newFCI = new FullColumnInfo(childTable, childSideColumn._1, childSideColumn._2).
         updateTableName(newTableName)
       s" GROUP BY ${newFCI.nowColumnName}"
     } else
       ""
 
     private[this] def onPart(parentTable: TableForConstruct, childTable: TableForConstruct, newChildTableName: String) = {
-      val newChildColumnName = new FullColumnInfo(childTable, columnOfChildTable._1,
-        columnOfChildTable._2).nowColumnName
-      s"ON ${new FQCN(parentTable, columnOfParentTable._1).toSql} = ${new FQCN(newChildTableName, newChildColumnName).toSql}"
+      val newChildColumnName = new FullColumnInfo(childTable, childSideColumn._1,
+        childSideColumn._2).nowColumnName
+      s"ON ${new FQCN(parentTable, parentSideColumn._1).toSql} = ${new FQCN(newChildTableName, newChildColumnName).toSql}"
     }
 
     private[table] def toSql(parentTable: TableForConstruct, newChildTableName: String, nestLevel: Int):
     (SqlQuery, Set[FullColumnInfo]) = {
-      val plusLevel = if (_1toNRelation) 1 else 0
-      val (sql, oldFcis) = childTable.toSql(nestLevel + plusLevel)
+      val plusLevel = if (groupBy) 1 else 0
+      val (sql, oldFcis) = childSide.toSql(nestLevel + plusLevel)
       val fcis = oldFcis.map(_.updateTableName("A"))
-      val newFcis = if (_1toNRelation) {
+      val newFcis = if (groupBy) {
         fcis.map { fci =>
-          if (fci.originalColumn == new FQCN(childTable, columnOfChildTable._1))
+          if (fci.originalColumn == new FQCN(childSide, childSideColumn._1))
             fci
           else
             fci.bindUp(nestLevel)
         }
       } else fcis
       val newNewFcis = newFcis.map(_.updateTableName(newChildTableName))
-      val shallowNestSql = s"SELECT ${newFcis.getSelectSqlBody} FROM ( $sql ) AS A ${groupedBy(childTable, "A")}"
-      (s"JOIN ( $shallowNestSql ) AS $newChildTableName ${onPart(parentTable, childTable, newChildTableName)}", newNewFcis)
+      val shallowNestSql = s"SELECT ${newFcis.getSelectSqlBody} FROM ( $sql ) AS A ${groupedBy(childSide, "A")}"
+      (s"JOIN ( $shallowNestSql ) AS $newChildTableName ${onPart(parentTable, childSide, newChildTableName)}", newNewFcis)
     }
-
-    def digUpTables: Seq[TableForConstruct] = childTable.digUpTables
   }
 
   // Fully Qualified Column Name テーブル名も省略していないカラム名(勝手に命名)
-  case class FQCN(val tableName: String, columnName: String) {
+  private case class FQCN(val tableName: TableName, columnName: String) {
     def this(table: TableForConstruct, columnName: ColumnName) = this(table.name, columnName)
     val toSql = tableName + "." + columnName
   }
 
-  object FullColumnInfo {
+  private object FullColumnInfo {
     implicit class RichFullColumnInfoSet(fciSet: Set[FullColumnInfo]) {
       def getSelectSqlBody: String = fciSet.map(_.toColumnDefinition).mkString(", ")
     }
   }
 
-  class FullColumnInfo(val columnExpression: String, val nowColumnName: String, val originalColumn: FQCN) {
+  private class FullColumnInfo(val columnExpression: String, val nowColumnName: String, val originalColumn: FQCN) {
     def this(column: FQCN, nowColumnName: String, originalColumn: FQCN) = this(
       column.toSql, nowColumnName, originalColumn
     )
@@ -122,48 +151,31 @@ package object table {
       new FullColumnInfo(new FQCN(newTableName, this.nowColumnName), this.nowColumnName, this.originalColumn)
   }
 
-  private def toTableStructure(jsValue: JsValue): TableForConstruct = {
-    def a(jsValue: JsValue): Seq[JoinDefinitionForConstruct] = jsValue match {
-      case JsObject(Some(jd), b) =>
-        jd.childTable.joinDefinitions = (b.values.flatMap(a) ++ jd.childTable.joinDefinitions).toSeq
-        Seq(jd)
-      case JsArray(Some(jd), b) =>
-        jd.childTable.joinDefinitions = a(b) ++ jd.childTable.joinDefinitions
-        Seq(jd)
-      case JsObject(None, b) =>
-        b.values.flatMap(a).toSeq
-      // TDOO: arrayでtable definitonが空のテストケースを作れ、それでこの下に追加しろ
-      case _ =>
-        Seq.empty
-    }
-    val h = a(jsValue).head.childTable
-    // こっから肉付けするよ
-    // 返り値はそれぞれ tableName, columnName, scalaTypeName を表す
-    def b(jsValue: JsValue): Seq[(String, String, ScalaTypeName)] = jsValue match {
+  private def enumerateUseColumnsByTable(jsValue: JsValue,
+    tableTree: Table): Map[TableName, Map[ColumnName, ScalaTypeName]] = {
+    def enumerateByJsValue(jsValue: JsValue): Seq[(TableName, ColumnName, ScalaTypeName)] = jsValue match {
       case JsObject(_, p) =>
-        p.values.flatMap(b).toSeq
+        p.values.flatMap(enumerateByJsValue).toSeq
       case JsArray(_, e) =>
-        b(e)
+        enumerateByJsValue(e)
       case JsString(tableName, columnName) =>
         Seq((tableName, columnName, "String"))
       case JsInt(tableName, columnName) =>
         Seq((tableName, columnName, "Int"))
     }
-    def enumerateColumnsForOnOfJoin(table: TableForConstruct): Seq[(String, String, ScalaTypeName)] =
-      table.joinDefinitions.flatMap { jd =>
-        Seq(
-          (table.name, jd.columnOfParentTable._1, jd.columnOfParentTable._2),
-          (jd.childTable.name, jd.columnOfChildTable._1, jd.columnOfChildTable._2)
-        ) ++ enumerateColumnsForOnOfJoin(jd.childTable)
+    def enumerateColumnsForOnOfJoin(table: Table): Seq[(TableName, ColumnName, ScalaTypeName)] =
+      table.joinDefinitions.flatMap {
+        case (jd: JoinDefinition) =>
+          Seq(
+            (table.name, jd.parentSideColumn._1, jd.parentSideColumn._2),
+            (jd.childSide.name, jd.childSideColumn._1, jd.childSideColumn._2)
+          ) ++ enumerateColumnsForOnOfJoin(jd.childSide)
+        case (jd: RootJoinDefinition) =>
+          enumerateColumnsForOnOfJoin(jd.childSide)
       }
 
-    val columnDetails = b(jsValue) ++ enumerateColumnsForOnOfJoin(h)
-    for (table <- h.digUpTables)
-      for (columnDetail <- columnDetails)
-        if (table.name == columnDetail._1)
-          table.columnNameAndTypeMap += columnDetail._2 -> columnDetail._3
-
-    h
+    val columns = enumerateByJsValue(jsValue) ++ enumerateColumnsForOnOfJoin(tableTree)
+    columns.groupBy(_._1).mapValues(_.map { c => (c._2, c._3) }.toMap)
   }
 
   // TODO: 現在のプログラム上の制約。同じテーブルを複数回JOINすることができない(上で肉付けするときに

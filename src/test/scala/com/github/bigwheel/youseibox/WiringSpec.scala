@@ -99,7 +99,7 @@ class WiringSpec extends FunSpec with Matchers {
     TestCase(
       "最も単純なjsonオブジェクトを組み立てられる",
       JsObject(
-        JoinDefinitionForConstruct(null, true, null, new TableForConstruct("artist")).some,
+        RootJoinDefinition(Table("artist")).some,
         Map[String, JsValue](
           "name" -> JsString("artist", "name")
         )
@@ -109,7 +109,7 @@ class WiringSpec extends FunSpec with Matchers {
     TestCase(
       "複数プロパティのjsonオブジェクトを組み立てられる",
       JsObject(
-        JoinDefinitionForConstruct(null, true, null, new TableForConstruct("artist")).some,
+        RootJoinDefinition(Table("artist")).some,
         Map[String, JsValue](
           "id" -> JsInt("artist", "id"),
           "name" -> JsString("artist", "name")
@@ -120,11 +120,10 @@ class WiringSpec extends FunSpec with Matchers {
     TestCase(
       "単純チェインのテーブルJOINでjsonオブジェクトを組み立てられる",
       JsObject(
-        JoinDefinitionForConstruct(
-          null, true, null,
-          new TableForConstruct(
+        RootJoinDefinition(
+          Table(
             "artist",
-            Seq(JoinDefinitionForConstruct("id" -> "Int", false, "artist_id" -> "Int", new TableForConstruct("artist_kana")))
+            JoinDefinition("id" -> "Int", false, "artist_id" -> "Int", Table("artist_kana"))
           )
         ).some,
         Map[String, JsValue](
@@ -137,7 +136,7 @@ class WiringSpec extends FunSpec with Matchers {
     TestCase(
       "単純にjsonオブジェクトがネストしていても組み立てられる",
       JsObject(
-        JoinDefinitionForConstruct(null, true, null, new TableForConstruct("artist")).some,
+        RootJoinDefinition(Table("artist")).some,
         Map[String, JsValue](
           "name" -> JsString("artist", "name"),
           "nest" -> JsObject(
@@ -156,19 +155,18 @@ class WiringSpec extends FunSpec with Matchers {
     TestCase(
       "ネストと直列JOINが両方あっても組み立てられる",
       JsObject(
-        JoinDefinitionForConstruct(
-          null, true, null,
-          new TableForConstruct(
+        RootJoinDefinition(
+          Table(
             "artist",
-            Seq(JoinDefinitionForConstruct("id" -> "Int", false, "artist_id" -> "Int", new TableForConstruct("artist_kana")))
+            JoinDefinition("id" -> "Int", false, "artist_id" -> "Int", Table("artist_kana"))
           )
         ).some,
         Map[String, JsValue](
           "name" -> JsString("artist", "name"),
           "kana" -> JsString("artist_kana", "kana"),
           "musics" -> JsArray(
-            JoinDefinitionForConstruct("id" -> "Int", true, "artist_id" -> "Int",
-              new TableForConstruct("music")
+            JoinDefinition("id" -> "Int", true, "artist_id" -> "Int",
+              Table("music")
             ).some,
             JsString("music", "name")
           )
@@ -183,12 +181,12 @@ class WiringSpec extends FunSpec with Matchers {
     TestCase(
       "jsonオブジェクトが配列の中だとしても組み立てられる",
       JsObject(
-        JoinDefinitionForConstruct(null, true, null, new TableForConstruct("artist")).some,
+        RootJoinDefinition(Table("artist")).some,
         Map[String, JsValue](
           "name" -> JsString("artist", "name"),
           "musics" -> JsArray(
-            JoinDefinitionForConstruct("id" -> "Int", true, "artist_id" -> "Int",
-              new TableForConstruct("music")
+            JoinDefinition("id" -> "Int", true, "artist_id" -> "Int",
+              Table("music")
             ).some,
             JsObject(None, Map[String, JsValue]("name" -> JsString("music", "name")))
           )
@@ -202,12 +200,12 @@ class WiringSpec extends FunSpec with Matchers {
     TestCase(
       "ネスト内からネスト外のカラムを参照できる",
       JsObject(
-        JoinDefinitionForConstruct(null, true, null, new TableForConstruct("artist")).some,
+        RootJoinDefinition(Table("artist")).some,
         Map[String, JsValue](
           "name" -> JsString("artist", "name"),
           "musics" -> JsArray(
-            JoinDefinitionForConstruct("id" -> "Int", true, "artist_id" -> "Int",
-              new TableForConstruct("music")
+            JoinDefinition("id" -> "Int", true, "artist_id" -> "Int",
+              Table("music")
             ).some,
             JsObject(None, Map[String, JsValue](
               "name" -> JsString("music", "name"),
@@ -227,20 +225,20 @@ class WiringSpec extends FunSpec with Matchers {
     TestCase(
       "ネストが二重でも組み立てられる",
       JsObject(
-        JoinDefinitionForConstruct(null, true, null, new TableForConstruct("artist")).some,
+        RootJoinDefinition(Table("artist")).some,
         Map[String, JsValue](
           "name" -> JsString("artist", "name"),
           "musics" -> JsArray(
-            JoinDefinitionForConstruct("id" -> "Int", true, "artist_id" -> "Int",
-              new TableForConstruct("music")
+            JoinDefinition("id" -> "Int", true, "artist_id" -> "Int",
+              Table("music")
             ).some,
             JsObject(
               None,
               Map[String, JsValue](
                 "name" -> JsString("music", "name"),
                 "contents" -> JsArray(
-                  JoinDefinitionForConstruct("id" -> "Int", true, "music_id" -> "Int",
-                    new TableForConstruct("content")
+                  JoinDefinition("id" -> "Int", true, "music_id" -> "Int",
+                    Table("content")
                   ).some,
                   JsObject(
                     None,
@@ -284,12 +282,12 @@ class WiringSpec extends FunSpec with Matchers {
   // TODO: ↓でエラーが起こるので、そのエラーハンドリングをもっとわかりやすくする
   // 次やる作業: Tableクラスが定義・編集中両方で兼任する必要がないから分離してjsonDefinitionsをvarじゃなくする
   JsObject(
-    JoinDefinitionForConstruct(null, true, null, new TableForConstruct("artist")).some,
+    RootJoinDefinition(Table("artist")).some,
     Map[String, JsValue](
       "name" -> JsString("artist", "name"),
       "musics" -> JsArray(
-        JoinDefinitionForConstruct("id" -> "Int", true, "artist_id" -> "Int",
-          new TableForConstruct("music")
+        JoinDefinition("id" -> "Int", true, "artist_id" -> "Int",
+          Table("music")
         ).some,
         JsInt("artist", "id")
       )
@@ -298,12 +296,12 @@ class WiringSpec extends FunSpec with Matchers {
 
   it("テーブル構造が破綻していると例外が出る") {
     val jsValue = JsObject(
-      JoinDefinitionForConstruct(null, true, null, new TableForConstruct("artist")).some,
+      RootJoinDefinition(Table("artist")).some,
       Map[String, JsValue](
         "name" -> JsString("artist", "name"),
         "musics" -> JsArray(
-          JoinDefinitionForConstruct("id" -> "Int", false, "artist_id" -> "Int",
-            new TableForConstruct("music")
+          JoinDefinition("id" -> "Int", false, "artist_id" -> "Int",
+            Table("music")
           ).some,
           JsObject(None, Map[String, JsValue]("name" -> JsString("music", "name")))
         )
