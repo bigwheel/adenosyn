@@ -3,13 +3,17 @@ package com.github.bigwheel.changerecorder
 import org.scalatest.FunSpec
 import org.scalatest.Matchers
 import scala.sys.process.Process
-import scalikejdbc.ConnectionPool
-import scalikejdbc.DB
-import scalikejdbc.NamedDB
-import scalikejdbc.SQL
+import scalikejdbc._
 import scalikejdbc.metadata.Column
 
 class MainSpec extends FunSpec with Matchers {
+
+  GlobalSettings.loggingSQLAndTime = LoggingSQLAndTimeSettings(
+    enabled = false,
+    warningEnabled = true,
+    warningThresholdMillis = 1000L,
+    warningLogLevel = 'WARN
+  )
 
   def url(dbName: String = "") = {
     val ipAddress = Process("otto dev address").!!.stripLineEnd
@@ -49,6 +53,14 @@ class MainSpec extends FunSpec with Matchers {
         "GRANT ALL ON observee.* TO 'changerecorder'@'%'",
         "GRANT ALL ON record.* TO 'changerecorder'@'%'"
       ).query
+      test
+    }
+  }
+
+  def withTableUserAndDatabases(test: => Any) {
+    withUserAndDatabases {
+      ("CREATE TABLE observee.table1(pr1 INTEGER not null," +
+        "pr2 VARCHAR(30) not null, col1 INTEGER, PRIMARY KEY(pr1, pr2))").query
       test
     }
   }
@@ -110,13 +122,6 @@ class MainSpec extends FunSpec with Matchers {
     }
 
     describe("primary keyだけのテーブルができているかチェック") {
-      def withTableUserAndDatabases(test: => Any) {
-        withUserAndDatabases {
-          ("CREATE TABLE observee.table1(pr1 INTEGER not null," +
-            "pr2 VARCHAR(30) not null, col1 INTEGER, PRIMARY KEY(pr1, pr2))").query
-          test
-        }
-      }
 
       it("primary keyではないカラムがあっても記録データベース側のテーブルにはprimary keyカラムしかない") {
         withTableUserAndDatabases {
@@ -208,6 +213,37 @@ class MainSpec extends FunSpec with Matchers {
 
       }
     }
+  }
+
+  describe(".tearDown") {
+
+    it("setUp後にtearDownすると監視対象テーブルへ行を追加しても記録テーブルへは行が追加されない") {
+      withTableUserAndDatabases {
+        noException should be thrownBy {
+          val cr = new ChangeRecorder(url("observee"), url("record"), "changerecorder", "cr")
+          cr.setUp
+          cr.tearDown
+
+          "INSERT INTO observee.table1 (pr1, pr2, col1) VALUES (1, 'test', 3)".query
+
+          NamedDB('record).readOnly { implicit session =>
+            SQL("SELECT COUNT(*) FROM table1").map(_.int(1)).single.apply().get should be(0)
+          }
+        }
+      }
+    }
+
+    it("setUp後にtearDown、さらにsetUpしても問題ない") {
+      withTableUserAndDatabases {
+        noException should be thrownBy {
+          val cr = new ChangeRecorder(url("observee"), url("record"), "changerecorder", "cr")
+          cr.setUp
+          cr.tearDown
+          cr.setUp
+        }
+      }
+    }
+
   }
 
 }
