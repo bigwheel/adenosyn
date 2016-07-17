@@ -45,7 +45,7 @@ class MainSpec extends FunSpec with Matchers {
   def withUserAndDatabases(test: => Any) {
     withDatabases {
       Seq(
-        "CREATE USER 'changerecorder'@'%' IDENTIFIED BY 'changerecorder'",
+        "CREATE USER 'changerecorder'@'%' IDENTIFIED BY 'cr'",
         "GRANT ALL ON observee.* TO 'changerecorder'@'%'",
         "GRANT ALL ON record.* TO 'changerecorder'@'%'"
       ).query
@@ -53,13 +53,12 @@ class MainSpec extends FunSpec with Matchers {
     }
   }
 
-  describe(".prepare") {
+  describe(".setUp") {
     // TODO: 例外を厳密に指定する
     it("監視対象データベースに監視ユーザーが存在しないと例外が出る") {
       withDatabases {
         a[Exception] should be thrownBy {
-          new ChangeRecorder(url("observee"), url("record"), "changerecorder", "changerecorder").
-            prepare
+          new ChangeRecorder(url("observee"), url("record"), "changerecorder", "cr").setUp
         }
       }
     }
@@ -73,23 +72,15 @@ class MainSpec extends FunSpec with Matchers {
         ).query
 
         a[Exception] should be thrownBy {
-          new ChangeRecorder(url("observee"), url("record"), "changerecorder", "changerecorder").
-            prepare
+          new ChangeRecorder(url("observee"), url("record"), "changerecorder", "cr").setUp
         }
       }
     }
 
     it("適切な権限があれば成功する") {
-      withDatabases {
-        Seq(
-          "CREATE USER 'changerecorder'@'%' IDENTIFIED BY 'changerecorder'",
-          "GRANT ALL ON observee.* TO 'changerecorder'@'%'",
-          "GRANT ALL ON record.* TO 'changerecorder'@'%'"
-        ).query
-
+      withUserAndDatabases {
         noException should be thrownBy {
-          new ChangeRecorder(url("observee"), url("record"), "changerecorder", "changerecorder").
-            prepare
+          new ChangeRecorder(url("observee"), url("record"), "changerecorder", "cr").setUp
         }
       }
     }
@@ -112,41 +103,109 @@ class MainSpec extends FunSpec with Matchers {
       withUserAndDatabases {
         "CREATE TABLE observee.table1(id INTEGER PRIMARY KEY not null)".query
 
-        new ChangeRecorder(url("observee"), url("record"), "changerecorder", "changerecorder").
-          prepare
+        new ChangeRecorder(url("observee"), url("record"), "changerecorder", "cr").setUp
 
         NamedDB('record).getTable("table1").nonEmpty should be(true)
       }
     }
 
     describe("primary keyだけのテーブルができているかチェック") {
-      it("primary keyではないカラムがあっても記録データベース側のテーブルにはprimary keyカラムしかない") {
+      def withTableUserAndDatabases(test: => Any) {
         withUserAndDatabases {
-          "CREATE TABLE observee.table1(pr1 INTEGER PRIMARY KEY not null, col1 INTEGER)".query
+          ("CREATE TABLE observee.table1(pr1 INTEGER not null," +
+            "pr2 VARCHAR(30) not null, col1 INTEGER, PRIMARY KEY(pr1, pr2))").query
+          test
+        }
+      }
 
-          new ChangeRecorder(url("observee"), url("record"), "changerecorder", "changerecorder").
-            prepare
+      it("primary keyではないカラムがあっても記録データベース側のテーブルにはprimary keyカラムしかない") {
+        withTableUserAndDatabases {
+          new ChangeRecorder(url("observee"), url("record"), "changerecorder", "cr").setUp
 
           NamedDB('record).getTable("table1").get.columns.withFilter(_.isPrimaryKey).
-            map(_.name) should be(List("pr1"))
+            map(_.name) should be(List("pr1", "pr2"))
         }
       }
 
       it("カラム定義が監視対象データベースと一致する") {
-        withUserAndDatabases {
-          ("CREATE TABLE observee.table1(" +
-            "pr1 INTEGER not null," +
-            "pr2 VARCHAR(30) not null," +
-            "col1 INTEGER, PRIMARY KEY(pr1, pr2))").query
-
-          new ChangeRecorder(url("observee"), url("record"), "changerecorder", "changerecorder").
-            prepare
+        withTableUserAndDatabases {
+          new ChangeRecorder(url("observee"), url("record"), "changerecorder", "cr").setUp
 
           NamedDB('record).getTable("table1").get.columns should matchPattern {
             case List(Column("pr1", _, "INT", _, true, true, false, _, _),
             Column("pr2", _, "VARCHAR", 30, true, true, false, _, _)) =>
           }
         }
+      }
+
+      it("行がある状態で実行しても記録テーブルは空") {
+        withTableUserAndDatabases {
+          "INSERT INTO observee.table1 (pr1, pr2, col1) VALUES (1, 'test', 3)".query
+
+          new ChangeRecorder(url("observee"), url("record"), "changerecorder", "cr").setUp
+
+          NamedDB('record).readOnly { implicit session =>
+            SQL("SELECT COUNT(*) FROM table1").map(_.int(1)).single.apply().get should be(0)
+          }
+        }
+      }
+
+      describe(".setUp実行後") {
+
+        it("監視対象テーブルへ行を追加すると記録テーブルに対応する行ができる") {
+          withTableUserAndDatabases {
+            new ChangeRecorder(url("observee"), url("record"), "changerecorder", "cr").setUp
+
+            "INSERT INTO observee.table1 (pr1, pr2, col1) VALUES (1, 'test', 3)".query
+
+            NamedDB('record).readOnly { implicit session =>
+              SQL("SELECT COUNT(*) FROM table1").map(_.int(1)).single.apply().get should be(1)
+            }
+          }
+        }
+
+        it("監視対象テーブルの行を削除すると記録テーブルに対応する行ができる") {
+          withTableUserAndDatabases {
+            "INSERT INTO observee.table1 (pr1, pr2, col1) VALUES (1, 'test', 3)".query
+
+            new ChangeRecorder(url("observee"), url("record"), "changerecorder", "cr").setUp
+
+            "DELETE FROM observee.table1".query
+
+            NamedDB('record).readOnly { implicit session =>
+              SQL("SELECT COUNT(*) FROM table1").map(_.int(1)).single.apply().get should be(1)
+            }
+          }
+        }
+
+        it("Primary Keyのカラムが更新されると記録テーブルに対応する2行ができる") {
+          withTableUserAndDatabases {
+            "INSERT INTO observee.table1 (pr1, pr2, col1) VALUES (1, 'test', 3)".query
+
+            new ChangeRecorder(url("observee"), url("record"), "changerecorder", "cr").setUp
+
+            "UPDATE observee.table1 SET pr1=2".query
+
+            NamedDB('record).readOnly { implicit session =>
+              SQL("SELECT COUNT(*) FROM table1").map(_.int(1)).single.apply().get should be(2)
+            }
+          }
+        }
+
+        it("Primary Key以外のカラムが更新されると記録テーブルに対応する1行ができる") {
+          withTableUserAndDatabases {
+            "INSERT INTO observee.table1 (pr1, pr2, col1) VALUES (1, 'test', 3)".query
+
+            new ChangeRecorder(url("observee"), url("record"), "changerecorder", "cr").setUp
+
+            "UPDATE observee.table1 SET col1=2".query
+
+            NamedDB('record).readOnly { implicit session =>
+              SQL("SELECT COUNT(*) FROM table1").map(_.int(1)).single.apply().get should be(1)
+            }
+          }
+        }
+
       }
     }
   }
