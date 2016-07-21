@@ -1,6 +1,6 @@
 name := "youseibox"
 version := "0.1.0"
-scalaVersion := "2.11.7"
+scalaVersion := "2.11.8"
 scalacOptions ++= Seq("-unchecked", "-deprecation")
 lazy val changeRecorder = project.in(file("change-recorder"))
 lazy val changeUpdater = project.in(file("change-updater"))
