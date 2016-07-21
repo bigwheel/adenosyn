@@ -3,7 +3,7 @@ application {
     type = "java"
 
     dependency {
-        source = "./otto-mysql"
+        source = "github.com/bigwheel/otto-mysql"
     }
 
     dependency {

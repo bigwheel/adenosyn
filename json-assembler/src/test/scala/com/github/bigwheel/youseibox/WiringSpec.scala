@@ -11,15 +11,33 @@ import scalaz.Scalaz._
 import scalikejdbc._
 
 class WiringSpec extends FunSpec with Matchers {
-  val ipAddress = Process("otto dev address").!!.stripLineEnd
+  private[this] val ipAddress = Process("otto dev address").!!.stripLineEnd
+  private[this] implicit val session = AutoSession
 
-  Class.forName("com.mysql.jdbc.Driver")
-  ConnectionPool.singleton(
-    s"jdbc:mysql://$ipAddress/youseibox_test?characterEncoding=UTF-8&useSSL=false", "youseibox", "youseibox")
-  implicit val session = AutoSession
+  private[this] def initialize() = {
+    Class.forName("com.mysql.jdbc.Driver")
+    using(Commons2ConnectionPoolFactory(s"jdbc:mysql://$ipAddress/?useSSL=false", "root", "root")) {
+      rootPool =>
+        using(DB(rootPool.borrow)) { ghostDb =>
+          ghostDb.autoCommit { implicit session =>
+            """
+              |DROP USER IF EXISTS youseibox
+              |CREATE USER 'youseibox'@'%' IDENTIFIED BY 'youseibox'
+              |DROP DATABASE IF EXISTS youseibox
+              |CREATE DATABASE youseibox
+              |DROP DATABASE IF EXISTS youseibox_test
+              |CREATE DATABASE youseibox_test
+              |GRANT ALL ON youseibox.*      TO 'youseibox'@'%'
+              |GRANT ALL ON youseibox_test.* TO 'youseibox'@'%'
+              |""".stripMargin.split("\n").withFilter(_ != "").foreach(SQL(_).execute.apply())
+          }
+        }
+    }
 
-  def createFixtures() = {
-    DB autoCommit { implicit session =>
+    ConnectionPool.singleton(
+      s"jdbc:mysql://$ipAddress/youseibox_test?useSSL=false", "youseibox", "youseibox")
+
+    DB.autoCommit { implicit session =>
       Seq(
         "drop table if exists artist",
         "drop table if exists artist_kana",
@@ -82,7 +100,7 @@ class WiringSpec extends FunSpec with Matchers {
     }
   }
 
-  createFixtures
+  initialize
 
   /*it("開発環境VMが動いている") { // テスト毎に時間が数秒余計にかかるのでコメントアウト
     val result = Process("otto dev vagrant status").!!
@@ -95,6 +113,7 @@ class WiringSpec extends FunSpec with Matchers {
   }
 
   case class TestCase(title: String, input: JsValue, expected: List[Json])
+
   val tests = Seq[TestCase](
     TestCase(
       "最も単純なjsonオブジェクトを組み立てられる",
@@ -307,7 +326,7 @@ class WiringSpec extends FunSpec with Matchers {
         )
       )
     ) // TODO: 例外条件を絞ってこっちが意図して例外を出すようにする
-    a [Exception] should be thrownBy {
+    a[Exception] should be thrownBy {
       fetchJsonResult(jsValue)
     }
   }
