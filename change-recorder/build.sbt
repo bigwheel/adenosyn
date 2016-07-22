@@ -2,6 +2,8 @@ name := "change-recorder"
 version := "0.1.0"
 scalaVersion := "2.11.8"
 scalacOptions ++= Seq("-unchecked", "-deprecation")
+lazy val util = project.in(file("../util"))
+lazy val changeRecorder = project.in(file(".")).dependsOn(util)
 // @formatter:off
 libraryDependencies ++= Seq(
   "org.scalactic"   %% "scalactic"            % "2.2.6",

@@ -1,5 +1,7 @@
 package com.github.bigwheel.changerecorder
 
+import com.github.bigwheel.util
+import com.github.bigwheel.util._
 import org.scalatest.FunSpec
 import org.scalatest.Matchers
 import scala.sys.process.Process
@@ -8,24 +10,11 @@ import scalikejdbc.metadata.Column
 
 class MainSpec extends FunSpec with Matchers {
 
-  GlobalSettings.loggingSQLAndTime = LoggingSQLAndTimeSettings(
-    enabled = false,
-    warningEnabled = true,
-    warningThresholdMillis = 1000L,
-    warningLogLevel = 'WARN
-  )
+  util.suppressSqlLog()
 
   def url(dbName: String = "") = {
     val ipAddress = Process("otto dev address").!!.stripLineEnd
     s"jdbc:mysql://$ipAddress/$dbName?characterEncoding=UTF-8&useSSL=false"
-  }
-
-  private[this] implicit class RichString(q: String) {
-    def query() = DB.autoCommit { implicit session => SQL(q).execute.apply() }
-  }
-
-  private[this] implicit class RichSeqString(queries: Seq[String]) {
-    def query() = DB.autoCommit { implicit session => queries.foreach(SQL(_).execute.apply()) }
   }
 
   {
