@@ -23,13 +23,10 @@ class WiringSpec extends FunSpec with Matchers {
             """
               |DROP USER IF EXISTS youseibox
               |CREATE USER 'youseibox'@'%' IDENTIFIED BY 'youseibox'
-              |DROP DATABASE IF EXISTS youseibox
-              |CREATE DATABASE youseibox
               |DROP DATABASE IF EXISTS youseibox_test
               |CREATE DATABASE youseibox_test
-              |GRANT ALL ON youseibox.*      TO 'youseibox'@'%'
               |GRANT ALL ON youseibox_test.* TO 'youseibox'@'%'
-              |""".stripMargin.split("\n").withFilter(_ != "").foreach(SQL(_).execute.apply())
+              | """.stripMargin.split("\n").withFilter(_.trim != "").foreach(SQL(_).execute.apply())
           }
         }
     }
