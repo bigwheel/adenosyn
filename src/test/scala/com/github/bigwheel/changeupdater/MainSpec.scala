@@ -3,9 +3,9 @@ package com.github.bigwheel.changeupdater
 import com.github.bigwheel.util
 import org.scalatest.FunSpec
 import org.scalatest.Matchers
-import scala.io.Source
 import scalikejdbc.ConnectionPool
 import scalikejdbc.DB
+import scalikejdbc.NamedDB
 
 class MainSpec extends FunSpec with Matchers {
 
@@ -28,7 +28,9 @@ class MainSpec extends FunSpec with Matchers {
           |GRANT ALL ON observee.* TO 'youseibox'@'%';
           |GRANT ALL ON record.*   TO 'youseibox'@'%';""".stripMargin
       )
-      util.executeSqlScript(Source.fromFile("../json-assembler/src/test/resources/fixture.sql").mkString)
+    }
+    NamedDB('observee).autoCommit { implicit session =>
+      util.executeSqlScript("/fixture.sql")
     }
 
     test
