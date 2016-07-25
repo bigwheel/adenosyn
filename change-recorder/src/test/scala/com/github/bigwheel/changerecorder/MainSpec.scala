@@ -4,18 +4,12 @@ import com.github.bigwheel.util
 import com.github.bigwheel.util._
 import org.scalatest.FunSpec
 import org.scalatest.Matchers
-import scala.sys.process.Process
 import scalikejdbc._
 import scalikejdbc.metadata.Column
 
 class MainSpec extends FunSpec with Matchers {
 
   util.suppressSqlLog()
-
-  def url(dbName: String = "") = {
-    val ipAddress = Process("otto dev address").!!.stripLineEnd
-    s"jdbc:mysql://$ipAddress/$dbName?characterEncoding=UTF-8&useSSL=false"
-  }
 
   {
     Class.forName("com.mysql.jdbc.Driver")

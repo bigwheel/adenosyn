@@ -1,6 +1,7 @@
 package com.github.bigwheel
 
 import scala.io.Source
+import scala.sys.process.Process
 import scalikejdbc.Commons2ConnectionPoolFactory
 import scalikejdbc.DB
 import scalikejdbc.DBSession
@@ -10,6 +11,10 @@ import scalikejdbc.SQL
 import scalikejdbc.using
 
 package object util {
+
+  private lazy val ipAddress = Process("otto dev address").!!.stripLineEnd
+
+  def url(dbName: String = "") = s"jdbc:mysql://$ipAddress/$dbName?useSSL=false"
 
   implicit class RichString(q: String)(implicit session: DBSession) {
     def query(): Unit = SQL(q).execute.apply()

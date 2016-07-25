@@ -6,4 +6,5 @@ scalacOptions ++= Seq("-unchecked", "-deprecation")
 lazy val changeRecorder = project.in(file("change-recorder"))
 lazy val changeUpdater  = project.in(file("change-updater"))
 lazy val jsonAssembler  = project.in(file("json-assembler"))
+lazy val util           = project.in(file("util"))
 // @formatter:on

@@ -7,18 +7,17 @@ import com.github.bigwheel.youseibox.table._
 import com.github.bigwheel.util
 import org.scalatest.FunSpec
 import org.scalatest.Matchers
-import scala.sys.process.Process
 import scalaz.Scalaz._
 import scalikejdbc._
 
 class WiringSpec extends FunSpec with Matchers {
-  private[this] val ipAddress = Process("otto dev address").!!.stripLineEnd
+
   private[this] implicit val session = AutoSession
 
   private[this] def initialize() = {
     Class.forName("com.mysql.jdbc.Driver")
 
-    util.executeSqlInstantly(s"jdbc:mysql://$ipAddress/?useSSL=false", "root", "root",
+    util.executeSqlInstantly(util.url(), "root", "root",
       """DROP USER IF EXISTS youseibox;
         |CREATE USER 'youseibox'@'%' IDENTIFIED BY 'youseibox';
         |DROP DATABASE IF EXISTS youseibox_test;
@@ -26,23 +25,12 @@ class WiringSpec extends FunSpec with Matchers {
         |GRANT ALL ON youseibox_test.* TO 'youseibox'@'%';""".stripMargin
     )
 
-    ConnectionPool.singleton(
-      s"jdbc:mysql://$ipAddress/youseibox_test?useSSL=false", "youseibox", "youseibox")
+    ConnectionPool.singleton(util.url("youseibox_test"), "youseibox", "youseibox")
 
     DB.autoCommit { implicit session => util.executeSqlScript("/fixture.sql") }
   }
 
   initialize
-
-  /*it("開発環境VMが動いている") { // テスト毎に時間が数秒余計にかかるのでコメントアウト
-    val result = Process("otto dev vagrant status").!!
-    result.split("\n")(3) should
-      equal("default                   running (virtualbox)")
-  }*/
-
-  it("開発環境のIPアドレスが正しく取得できる") {
-    ipAddress should fullyMatch regex """\A\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\Z"""
-  }
 
   case class TestCase(title: String, input: JsValue, expected: List[Json])
 
