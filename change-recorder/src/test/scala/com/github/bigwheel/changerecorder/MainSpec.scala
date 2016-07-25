@@ -24,24 +24,26 @@ class MainSpec extends FunSpec with Matchers {
     ConnectionPool.add('record, url("record"), "root", "root")
   }
 
+  private[this] implicit val session = AutoSession
+
   def withDatabases(test: => Any) {
-    Seq(
-      "DROP DATABASE IF EXISTS observee",
-      "CREATE DATABASE observee",
-      "DROP DATABASE IF EXISTS record",
-      "CREATE DATABASE record",
-      "DROP USER IF EXISTS 'changerecorder'@'%'"
-    ).query
+    util.executeSqlStatements(
+      """DROP DATABASE IF EXISTS observee;
+        |CREATE DATABASE observee;
+        |DROP DATABASE IF EXISTS record;
+        |CREATE DATABASE record;
+        |DROP USER IF EXISTS 'changerecorder'@'%';""".stripMargin
+    )
     test
   }
 
   def withUserAndDatabases(test: => Any) {
     withDatabases {
-      Seq(
-        "CREATE USER 'changerecorder'@'%' IDENTIFIED BY 'cr'",
-        "GRANT ALL ON observee.* TO 'changerecorder'@'%'",
-        "GRANT ALL ON record.* TO 'changerecorder'@'%'"
-      ).query
+      util.executeSqlStatements(
+        """CREATE USER 'changerecorder'@'%' IDENTIFIED BY 'cr';
+          |GRANT ALL ON observee.* TO 'changerecorder'@'%';
+          |GRANT ALL ON record.* TO 'changerecorder'@'%';""".stripMargin
+      )
       test
     }
   }
