@@ -2,8 +2,7 @@ package com.github.bigwheel.youseibox
 
 import argonaut.Argonaut._
 import argonaut._
-import com.github.bigwheel.youseibox.json._
-import com.github.bigwheel.youseibox.table._
+import com.github.bigwheel.youseibox.structure._
 import org.scalatest.FunSpec
 import org.scalatest.Matchers
 import scalikejdbc._
