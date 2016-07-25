@@ -17,27 +17,19 @@ class WiringSpec extends FunSpec with Matchers {
 
   private[this] def initialize() = {
     Class.forName("com.mysql.jdbc.Driver")
-    using(Commons2ConnectionPoolFactory(s"jdbc:mysql://$ipAddress/?useSSL=false", "root", "root")) {
-      rootPool =>
-        using(DB(rootPool.borrow)) { ghostDb =>
-          ghostDb.autoCommit { implicit session =>
-            """
-              |DROP USER IF EXISTS youseibox
-              |CREATE USER 'youseibox'@'%' IDENTIFIED BY 'youseibox'
-              |DROP DATABASE IF EXISTS youseibox_test
-              |CREATE DATABASE youseibox_test
-              |GRANT ALL ON youseibox_test.* TO 'youseibox'@'%'
-              | """.stripMargin.split("\n").withFilter(_.trim != "").foreach(SQL(_).execute.apply())
-          }
-        }
-    }
+
+    util.executeSqlInstantly(s"jdbc:mysql://$ipAddress/?useSSL=false", "root", "root",
+      """DROP USER IF EXISTS youseibox;
+        |CREATE USER 'youseibox'@'%' IDENTIFIED BY 'youseibox';
+        |DROP DATABASE IF EXISTS youseibox_test;
+        |CREATE DATABASE youseibox_test;
+        |GRANT ALL ON youseibox_test.* TO 'youseibox'@'%';""".stripMargin
+    )
 
     ConnectionPool.singleton(
       s"jdbc:mysql://$ipAddress/youseibox_test?useSSL=false", "youseibox", "youseibox")
 
-    DB.autoCommit { implicit session =>
-      util.executeSqlScript("/fixture.sql")
-    }
+    DB.autoCommit { implicit session => util.executeSqlScript("/fixture.sql") }
   }
 
   initialize
