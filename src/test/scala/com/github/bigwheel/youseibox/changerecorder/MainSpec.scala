@@ -1,7 +1,7 @@
-package com.github.bigwheel.changerecorder
+package com.github.bigwheel.youseibox.changerecorder
 
-import com.github.bigwheel.util
-import com.github.bigwheel.util._
+import com.github.bigwheel.youseibox.util
+import com.github.bigwheel.youseibox.util._
 import org.scalatest.FunSpec
 import org.scalatest.Matchers
 import scalikejdbc._

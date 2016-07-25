@@ -1,6 +1,6 @@
-package com.github.bigwheel.changeupdater
+package com.github.bigwheel.youseibox.changeupdater
 
-import com.github.bigwheel.util
+import com.github.bigwheel.youseibox.util
 import org.scalatest.FunSpec
 import org.scalatest.Matchers
 import scalikejdbc.ConnectionPool

@@ -1,4 +1,4 @@
-package com.github.bigwheel
+package com.github.bigwheel.youseibox
 
 import scala.io.Source
 import scala.sys.process.Process

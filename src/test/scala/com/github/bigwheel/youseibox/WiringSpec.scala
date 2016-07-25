@@ -4,11 +4,10 @@ import argonaut.Argonaut._
 import argonaut._
 import com.github.bigwheel.youseibox.json._
 import com.github.bigwheel.youseibox.table._
-import com.github.bigwheel.util
 import org.scalatest.FunSpec
 import org.scalatest.Matchers
-import scalaz.Scalaz._
 import scalikejdbc._
+import scalaz.Scalaz._
 
 class WiringSpec extends FunSpec with Matchers {
 
