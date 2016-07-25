@@ -1,6 +1,6 @@
 package com.github.bigwheel.youseibox.changeupdater
 
-import com.github.bigwheel.youseibox.util
+import com.github.bigwheel.youseibox.sqlutil
 import org.scalatest.FunSpec
 import org.scalatest.Matchers
 import scalikejdbc.ConnectionPool
@@ -9,16 +9,16 @@ import scalikejdbc.NamedDB
 
 class MainSpec extends FunSpec with Matchers {
 
-  util.suppressSqlLog()
+  sqlutil.suppressLog()
 
   Class.forName("com.mysql.jdbc.Driver")
-  ConnectionPool.singleton(util.url(), "root", "root")
-  ConnectionPool.add('observee, util.url("observee"), "root", "root")
-  ConnectionPool.add('record, util.url("record"), "root", "root")
+  ConnectionPool.singleton(sqlutil.url(), "root", "root")
+  ConnectionPool.add('observee, sqlutil.url("observee"), "root", "root")
+  ConnectionPool.add('record, sqlutil.url("record"), "root", "root")
 
   private[this] def withDatabases(test: => Any) {
     DB.autoCommit { implicit session =>
-      util.executeSqlStatements(
+      sqlutil.executeStatements(
         """DROP DATABASE IF EXISTS observee;
           |CREATE DATABASE         observee;
           |DROP DATABASE IF EXISTS record;
@@ -30,7 +30,7 @@ class MainSpec extends FunSpec with Matchers {
       )
     }
     NamedDB('observee).autoCommit { implicit session =>
-      util.executeSqlScript("/fixture.sql")
+      sqlutil.executeScript("/fixture.sql")
     }
 
     test

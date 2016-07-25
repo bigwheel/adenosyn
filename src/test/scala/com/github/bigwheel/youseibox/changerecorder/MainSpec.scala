@@ -1,7 +1,7 @@
 package com.github.bigwheel.youseibox.changerecorder
 
-import com.github.bigwheel.youseibox.util
-import com.github.bigwheel.youseibox.util._
+import com.github.bigwheel.youseibox.sqlutil
+import com.github.bigwheel.youseibox.sqlutil._
 import org.scalatest.FunSpec
 import org.scalatest.Matchers
 import scalikejdbc._
@@ -9,19 +9,19 @@ import scalikejdbc.metadata.Column
 
 class MainSpec extends FunSpec with Matchers {
 
-  util.suppressSqlLog()
+  sqlutil.suppressLog()
 
   {
     Class.forName("com.mysql.jdbc.Driver")
-    ConnectionPool.singleton(url(), "root", "root")
-    ConnectionPool.add('observee, url("observee"), "root", "root")
-    ConnectionPool.add('record, url("record"), "root", "root")
+    ConnectionPool.singleton(sqlutil.url(), "root", "root")
+    ConnectionPool.add('observee, sqlutil.url("observee"), "root", "root")
+    ConnectionPool.add('record, sqlutil.url("record"), "root", "root")
   }
 
   private[this] implicit val session = AutoSession
 
   def withDatabases(test: => Any) {
-    util.executeSqlStatements(
+    sqlutil.executeStatements(
       """DROP DATABASE IF EXISTS observee;
         |CREATE DATABASE observee;
         |DROP DATABASE IF EXISTS record;
@@ -33,7 +33,7 @@ class MainSpec extends FunSpec with Matchers {
 
   def withUserAndDatabases(test: => Any) {
     withDatabases {
-      util.executeSqlStatements(
+      sqlutil.executeStatements(
         """CREATE USER 'changerecorder'@'%' IDENTIFIED BY 'cr';
           |GRANT ALL ON observee.* TO 'changerecorder'@'%';
           |GRANT ALL ON record.* TO 'changerecorder'@'%';""".stripMargin

@@ -13,7 +13,7 @@ class WiringSpec extends FunSpec with Matchers {
 
   Class.forName("com.mysql.jdbc.Driver")
 
-  util.executeSqlInstantly(util.url(), "root", "root",
+  sqlutil.executeInstantly(sqlutil.url(), "root", "root",
     """DROP USER IF EXISTS youseibox;
       |CREATE USER 'youseibox'@'%' IDENTIFIED BY 'youseibox';
       |DROP DATABASE IF EXISTS youseibox_test;
@@ -21,11 +21,11 @@ class WiringSpec extends FunSpec with Matchers {
       |GRANT ALL ON youseibox_test.* TO 'youseibox'@'%';""".stripMargin
   )
 
-  ConnectionPool.add('youseibox_test, util.url("youseibox_test"), "youseibox", "youseibox")
+  ConnectionPool.add('youseibox_test, sqlutil.url("youseibox_test"), "youseibox", "youseibox")
 
   private[this] implicit val session = NamedAutoSession('youseibox_test)
 
-  util.executeSqlScript("/fixture.sql")
+  sqlutil.executeScript("/fixture.sql")
 
   private[this] case class TestCase(title: String, input: JsValue, expected: List[Json])
 

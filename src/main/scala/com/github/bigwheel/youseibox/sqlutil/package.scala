@@ -10,7 +10,7 @@ import scalikejdbc.LoggingSQLAndTimeSettings
 import scalikejdbc.SQL
 import scalikejdbc.using
 
-package object util {
+package object sqlutil {
 
   private lazy val ipAddress = Process("otto dev address").!!.stripLineEnd
 
@@ -24,25 +24,23 @@ package object util {
     def query(): Unit = queries.foreach(_.query())
   }
 
-  def suppressSqlLog() = {
-    GlobalSettings.loggingSQLAndTime = LoggingSQLAndTimeSettings(
-      enabled = false,
-      warningEnabled = true,
-      warningThresholdMillis = 1000L,
-      warningLogLevel = 'WARN
-    )
-  }
+  def suppressLog() = GlobalSettings.loggingSQLAndTime = LoggingSQLAndTimeSettings(
+    enabled = false,
+    warningEnabled = true,
+    warningThresholdMillis = 1000L,
+    warningLogLevel = 'WARN
+  )
 
-  def executeSqlStatements(statements: String)(implicit session: DBSession): Unit =
+  def executeStatements(statements: String)(implicit session: DBSession): Unit =
     statements.split(';').toSeq.query()
 
-  def executeSqlScript(resourcePath: String)(implicit session: DBSession): Unit =
-    executeSqlStatements(Source.fromURL(getClass.getResource(resourcePath)).getLines.mkString("\n"))
+  def executeScript(resourcePath: String)(implicit session: DBSession): Unit =
+    executeStatements(Source.fromURL(getClass.getResource(resourcePath)).getLines.mkString("\n"))
 
-  def executeSqlInstantly(url: String, user: String, password: String, statements: String): Unit =
+  def executeInstantly(url: String, user: String, password: String, statements: String): Unit =
     using(Commons2ConnectionPoolFactory(url, user, password)) { rootPool =>
       using(DB(rootPool.borrow)) { ghostDb =>
-        ghostDb.autoCommit { implicit session => util.executeSqlStatements(statements) }
+        ghostDb.autoCommit { implicit session => executeStatements(statements) }
       }
     }
 
