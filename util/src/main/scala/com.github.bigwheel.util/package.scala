@@ -1,6 +1,8 @@
 package com.github.bigwheel
 
+import scala.io.Source
 import scalikejdbc.DB
+import scalikejdbc.DBSession
 import scalikejdbc.GlobalSettings
 import scalikejdbc.LoggingSQLAndTimeSettings
 import scalikejdbc.SQL
@@ -24,4 +26,9 @@ package object util {
     )
   }
 
+  def executeSqlScript(resourcePath: String)(implicit session: DBSession): Unit = {
+    val sqlStatements: Seq[String] = Source.fromURL(getClass.getResource(resourcePath)).getLines.
+      mkString("\n").split(';')
+    sqlStatements.query()
+  }
 }
