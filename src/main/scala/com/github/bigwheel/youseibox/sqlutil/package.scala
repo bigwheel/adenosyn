@@ -1,5 +1,6 @@
 package com.github.bigwheel.youseibox
 
+import com.sksamuel.elastic4s.ElasticsearchClientUri
 import scala.io.Source
 import scala.sys.process.Process
 import scalikejdbc.Commons2ConnectionPoolFactory
@@ -13,6 +14,11 @@ import scalikejdbc.using
 package object sqlutil {
 
   private lazy val ipAddress = Process("otto dev address").!!.stripLineEnd
+
+  /**
+    * どう考えてもここにあるべきじゃない・・
+    */
+  def elasticsearchUrl: ElasticsearchClientUri = ElasticsearchClientUri(ipAddress, 9200)
 
   def url(dbName: String = "") = s"jdbc:mysql://$ipAddress/$dbName?useSSL=false"
 
