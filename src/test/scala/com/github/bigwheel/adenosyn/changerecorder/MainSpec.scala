@@ -1,7 +1,7 @@
-package com.github.bigwheel.youseibox.changerecorder
+package com.github.bigwheel.adenosyn.changerecorder
 
-import com.github.bigwheel.youseibox.sqlutil
-import com.github.bigwheel.youseibox.sqlutil._
+import com.github.bigwheel.adenosyn.sqlutil
+import com.github.bigwheel.adenosyn.sqlutil._
 import org.scalatest.FunSpec
 import org.scalatest.Matchers
 import scalikejdbc._

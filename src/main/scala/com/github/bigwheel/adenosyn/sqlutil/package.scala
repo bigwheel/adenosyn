@@ -1,4 +1,4 @@
-package com.github.bigwheel.youseibox
+package com.github.bigwheel.adenosyn
 
 import com.sksamuel.elastic4s.ElasticsearchClientUri
 import scala.io.Source

@@ -1,4 +1,4 @@
-package com.github.bigwheel.youseibox.changerecorder
+package com.github.bigwheel.adenosyn.changerecorder
 
 import scalikejdbc._
 

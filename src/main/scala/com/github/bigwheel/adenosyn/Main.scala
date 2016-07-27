@@ -1,4 +1,4 @@
-package com.github.bigwheel.youseibox
+package com.github.bigwheel.adenosyn
 
 object Main {
 

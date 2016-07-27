@@ -1,5 +1,5 @@
 application {
-    name = "youseibox"
+    name = "adenosyn"
     type = "java"
 
     dependency {

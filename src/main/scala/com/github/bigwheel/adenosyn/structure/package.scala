@@ -1,4 +1,4 @@
-package com.github.bigwheel.youseibox
+package com.github.bigwheel.adenosyn
 
 import argonaut.Argonaut._
 import argonaut._

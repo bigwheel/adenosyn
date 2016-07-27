@@ -1,8 +1,8 @@
-package com.github.bigwheel.youseibox
+package com.github.bigwheel.adenosyn
 
 import argonaut.Argonaut._
 import argonaut._
-import com.github.bigwheel.youseibox.structure._
+import com.github.bigwheel.adenosyn.structure._
 import org.scalatest.FunSpec
 import org.scalatest.Matchers
 import scalikejdbc._
@@ -13,16 +13,16 @@ class WiringSpec extends FunSpec with Matchers {
   Class.forName("com.mysql.jdbc.Driver")
 
   sqlutil.executeInstantly(sqlutil.url(), "root", "root",
-    """DROP USER IF EXISTS youseibox;
-      |CREATE USER 'youseibox'@'%' IDENTIFIED BY 'youseibox';
-      |DROP DATABASE IF EXISTS youseibox_test;
-      |CREATE DATABASE youseibox_test;
-      |GRANT ALL ON youseibox_test.* TO 'youseibox'@'%';""".stripMargin
+    """DROP USER IF EXISTS adenosyn;
+      |CREATE USER 'adenosyn'@'%' IDENTIFIED BY 'adenosyn';
+      |DROP DATABASE IF EXISTS adenosyn_test;
+      |CREATE DATABASE adenosyn_test;
+      |GRANT ALL ON adenosyn_test.* TO 'adenosyn'@'%';""".stripMargin
   )
 
-  ConnectionPool.add('youseibox_test, sqlutil.url("youseibox_test"), "youseibox", "youseibox")
+  ConnectionPool.add('adenosyn_test, sqlutil.url("adenosyn_test"), "adenosyn", "adenosyn")
 
-  private[this] implicit val session = NamedAutoSession('youseibox_test)
+  private[this] implicit val session = NamedAutoSession('adenosyn_test)
 
   sqlutil.executeScript("/fixture.sql")
 

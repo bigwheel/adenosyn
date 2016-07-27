@@ -1,8 +1,8 @@
-package com.github.bigwheel.youseibox.changeupdater
+package com.github.bigwheel.adenosyn.changeupdater
 
-import com.github.bigwheel.youseibox.changerecorder.ChangeRecorder
-import com.github.bigwheel.youseibox.sqlutil
-import com.github.bigwheel.youseibox.structure._
+import com.github.bigwheel.adenosyn.changerecorder.ChangeRecorder
+import com.github.bigwheel.adenosyn.sqlutil
+import com.github.bigwheel.adenosyn.structure._
 import com.sksamuel.elastic4s.ElasticClient
 import com.sksamuel.elastic4s.ElasticsearchClientUri
 import org.scalatest.FunSpec
@@ -30,10 +30,10 @@ class MainSpec extends FunSpec with Matchers {
           |CREATE DATABASE         observee;
           |DROP DATABASE IF EXISTS record;
           |CREATE DATABASE         record;
-          |DROP USER IF EXISTS 'youseibox'@'%';
-          |CREATE USER         'youseibox'@'%' IDENTIFIED BY 'yb';
-          |GRANT ALL ON observee.* TO 'youseibox'@'%';
-          |GRANT ALL ON record.*   TO 'youseibox'@'%';""".stripMargin
+          |DROP USER IF EXISTS 'adenosyn'@'%';
+          |CREATE USER         'adenosyn'@'%' IDENTIFIED BY 'yb';
+          |GRANT ALL ON observee.* TO 'adenosyn'@'%';
+          |GRANT ALL ON record.*   TO 'adenosyn'@'%';""".stripMargin
       )
     }
     NamedDB('observee).autoCommit { implicit session =>
@@ -57,7 +57,7 @@ class MainSpec extends FunSpec with Matchers {
           "kana" -> JsString("artist_kana", "kana")
         )
       )
-      new Subject(sqlutil.url("observee"), sqlutil.url("record"), "youseibox", "yb",
+      new Subject(sqlutil.url("observee"), sqlutil.url("record"), "adenosyn", "yb",
         sqlutil.elasticsearchUrl, Seq((structure, IndexAndType("index1", "type1"))))
 
     }
