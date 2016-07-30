@@ -18,7 +18,7 @@ package object sqlutil {
   /**
     * どう考えてもここにあるべきじゃない・・
     */
-  def elasticsearchUrl: ElasticsearchClientUri = ElasticsearchClientUri(ipAddress, 9200)
+  def elasticsearchUrl: ElasticsearchClientUri = ElasticsearchClientUri(ipAddress, 9300)
 
   def url(dbName: String = "") = s"jdbc:mysql://$ipAddress/$dbName?useSSL=false"
 

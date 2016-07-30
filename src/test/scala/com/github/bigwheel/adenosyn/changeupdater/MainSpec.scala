@@ -5,16 +5,30 @@ import com.github.bigwheel.adenosyn.sqlutil
 import com.github.bigwheel.adenosyn.structure._
 import com.sksamuel.elastic4s.ElasticClient
 import com.sksamuel.elastic4s.ElasticsearchClientUri
-import org.scalatest.FunSpec
-import org.scalatest.Matchers
-import scalikejdbc.ConnectionPool
-import scalikejdbc.DB
-import scalikejdbc.NamedDB
+import org.scalatest.{BeforeAndAfter, FunSpec, Matchers}
+import scalikejdbc.{Commons2ConnectionPoolFactory, ConnectionPool, DB, NamedDB}
 import com.sksamuel.elastic4s.ElasticDsl._
 import com.sksamuel.elastic4s.IndexAndType
+import com.sksamuel.elastic4s.source.JsonDocumentSource
+import org.elasticsearch.common.settings.Settings
+
 import scalaz.Scalaz._
 
-class MainSpec extends FunSpec with Matchers {
+class MainSpec extends FunSpec with Matchers with BeforeAndAfter {
+
+  private[this] val client = ElasticClient.transport(
+    Settings.settingsBuilder.put("cluster_name", "elasticsearch").build(), sqlutil.elasticsearchUrl
+  )
+
+  before {
+    client.execute {
+      deleteIndex("_all")
+    }.await
+  }
+
+  after {
+    client.close
+  }
 
   sqlutil.suppressLog()
 
@@ -57,19 +71,38 @@ class MainSpec extends FunSpec with Matchers {
           "kana" -> JsString("artist_kana", "kana")
         )
       )
-      new Subject(sqlutil.url("observee"), sqlutil.url("record"), "adenosyn", "yb",
+      val subject = new Subject(sqlutil.url("observee"), sqlutil.url("record"), "adenosyn", "yb",
         sqlutil.elasticsearchUrl, Seq((structure, IndexAndType("index1", "type1"))))
-
+      subject.buildAll
+      client.execute { flush index "index1" }.await
+      val response = client.execute {
+        search in "index1" -> "type1"
+      }.await
+      response.hits.map(_.id) should be(Array("1"))
     }
   }
 
   class Subject(observeeDbUrl: String, recordDbUrl: String, user: String, password: String,
-    elasticsearchClientUri: ElasticsearchClientUri, mappings: Seq[(JsValue, IndexAndType)]) {
+                elasticsearchClientUri: ElasticsearchClientUri, mappings: Seq[(JsValue, IndexAndType)]) {
 
     val cr = new ChangeRecorder(observeeDbUrl, recordDbUrl, user, password)
-    val client = ElasticClient.transport(elasticsearchClientUri)
 
-    client.close
+    def buildAll() = {
+      val client = ElasticClient.transport(Settings.settingsBuilder.put("cluster_name", "elasticsearch").build(), sqlutil.elasticsearchUrl)
+
+      val pool = Commons2ConnectionPoolFactory(observeeDbUrl, user, password)
+      scalikejdbc.using(DB(pool.borrow)) { observeeDb =>
+        observeeDb.autoCommit { implicit session =>
+          val jsons = fetchJsonResult(mappings.head._1)(session)
+          client.execute {
+            index into mappings.head._2 doc JsonDocumentSource(jsons.head.nospaces)
+          }.await
+        }
+      }
+
+
+      client.close
+    }
   }
 
 }
