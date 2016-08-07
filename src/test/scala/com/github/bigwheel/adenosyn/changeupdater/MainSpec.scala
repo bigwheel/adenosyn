@@ -1,19 +1,22 @@
 package com.github.bigwheel.adenosyn.changeupdater
 
 import com.github.bigwheel.adenosyn.changerecorder.ChangeRecorder
-import com.github.bigwheel.adenosyn.sqlutil
 import com.github.bigwheel.adenosyn.dsl._
-import com.github.bigwheel.adenosyn.structure._
+import com.github.bigwheel.adenosyn.sqlutil
 import com.sksamuel.elastic4s.ElasticClient
-import com.sksamuel.elastic4s.ElasticsearchClientUri
-import org.scalatest.{BeforeAndAfter, FunSpec, Matchers}
-import scalikejdbc.{Commons2ConnectionPoolFactory, ConnectionPool, DB, NamedDB}
 import com.sksamuel.elastic4s.ElasticDsl._
+import com.sksamuel.elastic4s.ElasticsearchClientUri
 import com.sksamuel.elastic4s.IndexAndType
 import com.sksamuel.elastic4s.source.JsonDocumentSource
 import org.elasticsearch.common.settings.Settings
-
+import org.scalatest.BeforeAndAfter
+import org.scalatest.FunSpec
+import org.scalatest.Matchers
 import scalaz.Scalaz._
+import scalikejdbc.Commons2ConnectionPoolFactory
+import scalikejdbc.ConnectionPool
+import scalikejdbc.DB
+import scalikejdbc.NamedDB
 
 class MainSpec extends FunSpec with Matchers with BeforeAndAfter {
 
@@ -75,7 +78,9 @@ class MainSpec extends FunSpec with Matchers with BeforeAndAfter {
       val subject = new Subject(sqlutil.url("observee"), sqlutil.url("record"), "adenosyn", "yb",
         sqlutil.elasticsearchUrl, Seq((structure, IndexAndType("index1", "type1"))))
       subject.buildAll
-      client.execute { flush index "index1" }.await
+      client.execute {
+        flush index "index1"
+      }.await
       val response = client.execute {
         search in "index1" -> "type1"
       }.await
@@ -84,12 +89,13 @@ class MainSpec extends FunSpec with Matchers with BeforeAndAfter {
   }
 
   class Subject(observeeDbUrl: String, recordDbUrl: String, user: String, password: String,
-                elasticsearchClientUri: ElasticsearchClientUri, mappings: Seq[(JsValue, IndexAndType)]) {
+    elasticsearchClientUri: ElasticsearchClientUri, mappings: Seq[(JsValue, IndexAndType)]) {
 
     val cr = new ChangeRecorder(observeeDbUrl, recordDbUrl, user, password)
 
     def buildAll() = {
-      val client = ElasticClient.transport(Settings.settingsBuilder.put("cluster_name", "elasticsearch").build(), sqlutil.elasticsearchUrl)
+      val client = ElasticClient.transport(Settings.settingsBuilder.put("cluster_name",
+        "elasticsearch").build(), sqlutil.elasticsearchUrl)
 
       val pool = Commons2ConnectionPoolFactory(observeeDbUrl, user, password)
       scalikejdbc.using(DB(pool.borrow)) { observeeDb =>

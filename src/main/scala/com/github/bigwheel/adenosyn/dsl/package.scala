@@ -2,8 +2,6 @@ package com.github.bigwheel.adenosyn
 
 import argonaut.Argonaut._
 import argonaut._
-import com.github.bigwheel.adenosyn.dsl._
-import com.github.bigwheel.adenosyn.structure._
 import scalaz.Scalaz._
 import scalikejdbc.DBSession
 import scalikejdbc.SQL
@@ -14,7 +12,7 @@ package object dsl {
   type ColumnName = String
   type ScalaTypeName = String
 
-  class Column(val columnName: String, val scalaTypeName: ScalaTypeName)
+  case class Column(val columnName: ColumnName, val scalaTypeName: ScalaTypeName)
 
   sealed trait JsValue {
     /**
@@ -26,19 +24,19 @@ package object dsl {
       * 使用するカラム一覧を出す。ただしJoinDefinitionで使われるカラムは除く
       * (そちらは統合したツリーに対して計算する方が楽であるため、別で計算する)
       */
-    def listUseColumns: Seq[(TableName, ColumnName, ScalaTypeName)]
+    def listUseColumns: Seq[(TableName, Column)]
   }
 
   final case class JsString(tableName: String, columnName: String) extends JsValue {
     def getTableTree: Seq[JoinDefinitionBase] = Seq.empty
 
-    def listUseColumns = Seq((tableName, columnName, "String"))
+    def listUseColumns = Seq((tableName, new Column(columnName, "String")))
   }
 
   final case class JsInt(tableName: String, columnName: String) extends JsValue {
     def getTableTree: Seq[JoinDefinitionBase] = Seq.empty
 
-    def listUseColumns = Seq((tableName, columnName, "Int"))
+    def listUseColumns = Seq((tableName, new Column(columnName, "Int")))
   }
 
   final case class JsObject(
@@ -72,7 +70,7 @@ package object dsl {
 
     def digUpTables: Seq[Table] = this +: joinDefinitions.flatMap(_.digUpTables)
 
-    def listUseColumns: Seq[(TableName, ColumnName, ScalaTypeName)] =
+    def listUseColumns: Seq[(TableName, Column)] =
       joinDefinitions.flatMap(_.listUseColumns(this.name))
 
     def appendColumns(columnDetails: Map[TableName, Map[ColumnName, ScalaTypeName]]): TableForConstruct =
@@ -89,7 +87,7 @@ package object dsl {
     def digUpTables: Seq[Table] = childSide.digUpTables
 
     // これ以下のやつはJoinDefinitionクラスでのみ使われるので、構造を見なおしたらここで定義する必要なくなる
-    def listUseColumns(parentTableName: TableName): Seq[(TableName, ColumnName, ScalaTypeName)]
+    def listUseColumns(parentTableName: TableName): Seq[(TableName, Column)]
 
     def appendColumns(columnDetails: Map[TableName, Map[ColumnName, ScalaTypeName]]): JoinDefinitionForConstruct
   }
@@ -104,10 +102,20 @@ package object dsl {
     }
   }
 
+  object JoinDefinition {
+    def apply(
+      parentSideColumn: (ColumnName, ScalaTypeName),
+      groupBy: Boolean,
+      childSideColumn: (ColumnName, ScalaTypeName),
+      childSide: Table
+    ): JoinDefinition = apply(new Column(parentSideColumn._1, parentSideColumn._2), groupBy,
+      new Column(childSideColumn._1, childSideColumn._2), childSide)
+  }
+
   case class JoinDefinition(
-    parentSideColumn: (ColumnName, ScalaTypeName),
+    parentSideColumn: Column,
     groupBy: Boolean,
-    childSideColumn: (ColumnName, ScalaTypeName),
+    childSideColumn: Column,
     childSide: Table
   ) extends JoinDefinitionBase {
     override def copy(childSide: Table): JoinDefinitionBase =
@@ -115,8 +123,8 @@ package object dsl {
 
     override def listUseColumns(parentTableName: TableName) = {
       Seq(
-        (parentTableName, parentSideColumn._1, parentSideColumn._2),
-        (childSide.name, childSideColumn._1, childSideColumn._2)
+        (parentTableName, parentSideColumn),
+        (childSide.name, childSideColumn)
       ) ++ childSide.listUseColumns
     }
 
@@ -146,7 +154,7 @@ package object dsl {
   private def enumerateUseColumnsByTable(jsValue: JsValue,
     tableTree: Table): Map[TableName, Map[ColumnName, ScalaTypeName]] = {
     val columns = jsValue.listUseColumns ++ tableTree.listUseColumns
-    columns.groupBy(_._1).mapValues(_.map { c => (c._2, c._3) }.toMap)
+    columns.groupBy(_._1).mapValues(_.map { c => (c._2.columnName, c._2.scalaTypeName) }.toMap)
   }
 
   private type SqlQuery = String
@@ -161,12 +169,12 @@ package object dsl {
     columnNameAndTypeMap: Map[ColumnName, ScalaTypeName]) {
 
     private[this] def fullColumnInfos = columnNameAndTypeMap.map { case (columnName, scalaTypeName) =>
-      new FullColumnInfo(this, columnName, scalaTypeName)
+      new FullColumnInfo(this, new Column(columnName, scalaTypeName))
     }.toSet
 
     def toSql: SqlQuery = toSql(0)._1
 
-    private[structure] def toSql(nestLevel: Int): (SqlQuery, Set[FullColumnInfo]) = {
+    private[dsl] def toSql(nestLevel: Int): (SqlQuery, Set[FullColumnInfo]) = {
       val children = joinDefinitions.zipWithIndex.map { case (jd, i) => jd.toSql(this,
         s"_$i",
         nestLevel)
@@ -179,16 +187,15 @@ package object dsl {
   }
 
   class JoinDefinitionForConstruct(
-    parentSideColumn: (ColumnName, ScalaTypeName),
+    parentSideColumn: Column,
     groupBy: Boolean,
-    childSideColumn: (ColumnName, ScalaTypeName),
+    childSideColumn: Column,
     childSide: TableForConstruct
   ) {
 
     private[this] def groupedBy(childTable: TableForConstruct,
       newTableName: String) = if (groupBy) {
-      val newFCI = new FullColumnInfo(childTable, childSideColumn._1, childSideColumn._2).
-        updateTableName(newTableName)
+      val newFCI = new FullColumnInfo(childTable, childSideColumn).updateTableName(newTableName)
       s" GROUP BY ${newFCI.nowColumnName}"
     } else
       ""
@@ -196,15 +203,14 @@ package object dsl {
     private[this] def onPart(parentTable: TableForConstruct,
       childTable: TableForConstruct,
       newChildTableName: TableName) = {
-      val newChildColumnName = new FullColumnInfo(childTable, childSideColumn._1,
-        childSideColumn._2).nowColumnName
-      s"ON ${new FQCN(parentTable, parentSideColumn._1).toSql} = ${
+      val newChildColumnName = new FullColumnInfo(childTable, childSideColumn).nowColumnName
+      s"ON ${new FQCN(parentTable, parentSideColumn.columnName).toSql} = ${
         new FQCN(newChildTableName,
           newChildColumnName).toSql
       }"
     }
 
-    private[structure] def toSql(parentTable: TableForConstruct,
+    private[dsl] def toSql(parentTable: TableForConstruct,
       newChildTableName: String,
       nestLevel: Int):
     (SqlQuery, Set[FullColumnInfo]) = {
@@ -213,7 +219,7 @@ package object dsl {
       val fcis = oldFcis.map(_.updateTableName("A"))
       val newFcis = if (groupBy) {
         fcis.map { fci =>
-          if (fci.originalColumn == new FQCN(childSide, childSideColumn._1))
+          if (fci.originalColumn == new FQCN(childSide, childSideColumn.columnName))
             fci
           else
             fci.bindUp(nestLevel)
@@ -254,9 +260,11 @@ package object dsl {
       column.toSql, nowColumnName, originalColumn
     )
 
-    def this(table: TableForConstruct, columnName: ColumnName, scalaTypeName: ScalaTypeName) = this(
-      new FQCN(table, columnName), s"${table.name}__${columnName}__$scalaTypeName",
-      new FQCN(table, columnName))
+    def this(table: TableForConstruct, column: Column) = this(
+      new FQCN(table, column.columnName),
+      s"${table.name}__${column.columnName}__${column.scalaTypeName}",
+      new FQCN(table, column.columnName)
+    )
 
     val toColumnDefinition = s"$columnExpression AS $nowColumnName"
 

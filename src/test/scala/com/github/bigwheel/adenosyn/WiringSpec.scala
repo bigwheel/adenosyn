@@ -3,7 +3,6 @@ package com.github.bigwheel.adenosyn
 import argonaut.Argonaut._
 import argonaut._
 import com.github.bigwheel.adenosyn.dsl._
-import com.github.bigwheel.adenosyn.structure._
 import org.scalatest.FunSpec
 import org.scalatest.Matchers
 import scalikejdbc._
