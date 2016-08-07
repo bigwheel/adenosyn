@@ -73,7 +73,7 @@ package object dsl {
     def listUseColumns: Seq[(TableName, Column)] =
       joinDefinitions.flatMap(_.listUseColumns(this.name))
 
-    def appendColumns(columnDetails: Map[TableName, Map[ColumnName, ScalaTypeName]]): TableForConstruct =
+    def appendColumns(columnDetails: Map[TableName, Seq[Column]]): TableForConstruct =
       new TableForConstruct(name,
         joinDefinitions.map(_.appendColumns(columnDetails)),
         columnDetails(name))
@@ -89,7 +89,7 @@ package object dsl {
     // これ以下のやつはJoinDefinitionクラスでのみ使われるので、構造を見なおしたらここで定義する必要なくなる
     def listUseColumns(parentTableName: TableName): Seq[(TableName, Column)]
 
-    def appendColumns(columnDetails: Map[TableName, Map[ColumnName, ScalaTypeName]]): JoinDefinitionForConstruct
+    def appendColumns(columnDetails: Map[TableName, Seq[Column]]): JoinDefinitionForConstruct
   }
 
   case class RootJoinDefinition(childSide: Table) extends JoinDefinitionBase {
@@ -97,7 +97,7 @@ package object dsl {
 
     override def listUseColumns(parentTableName: TableName) = childSide.listUseColumns
 
-    override def appendColumns(columnDetails: Map[TableName, Map[ColumnName, ScalaTypeName]]) = {
+    override def appendColumns(columnDetails: Map[TableName, Seq[Column]]) = {
       throw new IllegalStateException("ここにJoinDefinition派生クラス以外がくるはずはない")
     }
   }
@@ -128,7 +128,7 @@ package object dsl {
       ) ++ childSide.listUseColumns
     }
 
-    override def appendColumns(columnDetails: Map[TableName, Map[ColumnName, ScalaTypeName]]) =
+    override def appendColumns(columnDetails: Map[TableName, Seq[Column]]) =
       new JoinDefinitionForConstruct(parentSideColumn, groupBy, childSideColumn,
         childSide.appendColumns(columnDetails))
   }
@@ -152,25 +152,23 @@ package object dsl {
   private def digAndMergeTableTree(jsValue: JsValue): Table = jsValue.getTableTree.head.childSide
 
   private def enumerateUseColumnsByTable(jsValue: JsValue,
-    tableTree: Table): Map[TableName, Map[ColumnName, ScalaTypeName]] = {
+    tableTree: Table): Map[TableName, Seq[Column]] = {
     val columns = jsValue.listUseColumns ++ tableTree.listUseColumns
-    columns.groupBy(_._1).mapValues(_.map { c => (c._2.columnName, c._2.scalaTypeName) }.toMap)
+    columns.groupBy(_._1).mapValues(_.map(_._2))
   }
 
   private type SqlQuery = String
 
   private def appendColumnInfoToTree(tableTree: Table,
-    columnDetails: Map[TableName, Map[ColumnName, ScalaTypeName]]): TableForConstruct =
+    columnDetails: Map[TableName, Seq[Column]]): TableForConstruct =
     tableTree.appendColumns(columnDetails)
 
   class TableForConstruct(
     val name: TableName,
     joinDefinitions: Seq[JoinDefinitionForConstruct],
-    columnNameAndTypeMap: Map[ColumnName, ScalaTypeName]) {
+    columns: Seq[Column]) {
 
-    private[this] def fullColumnInfos = columnNameAndTypeMap.map { case (columnName, scalaTypeName) =>
-      new FullColumnInfo(this, new Column(columnName, scalaTypeName))
-    }.toSet
+    private[this] def fullColumnInfos = columns.map(new FullColumnInfo(this, _)).toSet
 
     def toSql: SqlQuery = toSql(0)._1
 
