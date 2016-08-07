@@ -2,6 +2,7 @@ package com.github.bigwheel.adenosyn.changeupdater
 
 import com.github.bigwheel.adenosyn.changerecorder.ChangeRecorder
 import com.github.bigwheel.adenosyn.sqlutil
+import com.github.bigwheel.adenosyn.dsl._
 import com.github.bigwheel.adenosyn.structure._
 import com.sksamuel.elastic4s.ElasticClient
 import com.sksamuel.elastic4s.ElasticsearchClientUri

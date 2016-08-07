@@ -2,15 +2,24 @@ package com.github.bigwheel.adenosyn
 
 import argonaut.Argonaut._
 import argonaut._
+import com.github.bigwheel.adenosyn.dsl._
+import com.github.bigwheel.adenosyn.structure._
 import scalaz.Scalaz._
 import scalikejdbc.DBSession
 import scalikejdbc.SQL
 
-// あとでstructureとかそのままのjsonじゃなくてjsonの構造を定義するものだという意味を名前にきちんと込める
-// TableとかJoinDefinitionも追加するならDSLとか包括的な意味にしたらどうだろう
-package object structure {
+package object dsl {
+
+  type TableName = String
+  type ColumnName = String
+  type ScalaTypeName = String
+
+  class Column(val columnName: String, val scalaTypeName: ScalaTypeName)
 
   sealed trait JsValue {
+    /**
+      * 構造定義オブジェクトの中からテーブル構造のみを取り出す(もちろんTreeになる)
+      */
     def getTableTree: Seq[JoinDefinitionBase]
 
     /**
@@ -18,6 +27,18 @@ package object structure {
       * (そちらは統合したツリーに対して計算する方が楽であるため、別で計算する)
       */
     def listUseColumns: Seq[(TableName, ColumnName, ScalaTypeName)]
+  }
+
+  final case class JsString(tableName: String, columnName: String) extends JsValue {
+    def getTableTree: Seq[JoinDefinitionBase] = Seq.empty
+
+    def listUseColumns = Seq((tableName, columnName, "String"))
+  }
+
+  final case class JsInt(tableName: String, columnName: String) extends JsValue {
+    def getTableTree: Seq[JoinDefinitionBase] = Seq.empty
+
+    def listUseColumns = Seq((tableName, columnName, "Int"))
   }
 
   final case class JsObject(
@@ -46,22 +67,6 @@ package object structure {
     def listUseColumns = elem.listUseColumns
   }
 
-  final case class JsString(tableName: String, columnName: String) extends JsValue {
-    def getTableTree: Seq[JoinDefinitionBase] = Seq.empty
-
-    def listUseColumns = Seq((tableName, columnName, "String"))
-  }
-
-  final case class JsInt(tableName: String, columnName: String) extends JsValue {
-    def getTableTree: Seq[JoinDefinitionBase] = Seq.empty
-
-    def listUseColumns = Seq((tableName, columnName, "Int"))
-  }
-
-  type TableName = String
-  type ColumnName = String
-  type ScalaTypeName = String
-
   case class Table(name: TableName, joinDefinitions: JoinDefinitionBase*) {
     def update(_joinDefinitions: Seq[JoinDefinitionBase]) = new Table(name, _joinDefinitions: _*)
 
@@ -75,9 +80,6 @@ package object structure {
         joinDefinitions.map(_.appendColumns(columnDetails)),
         columnDetails(name))
   }
-
-  class TableWithColumns(table: Table, columns: Seq[(ColumnName, ScalaTypeName)]) extends
-    Table(table.name, table.joinDefinitions: _*)
 
   sealed trait JoinDefinitionBase {
     val childSide: Table
