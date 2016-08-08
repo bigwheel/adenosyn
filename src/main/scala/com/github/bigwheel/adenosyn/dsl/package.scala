@@ -14,6 +14,49 @@ package object dsl {
 
   case class Column(val columnName: ColumnName, val scalaTypeName: ScalaTypeName)
 
+  // Fully Qualified Column Name テーブル名も省略していないカラム名(勝手に命名)
+  // TODO: 第二引数をColumnにする
+  case class ColumnWithTableName(val tableName: TableName, columnName: String) {
+    def this(table: TableForConstruct, columnName: ColumnName) = this(table.name, columnName)
+
+    val toSql = tableName + "." + columnName
+  }
+
+  object ColumnDefinition {
+
+    implicit class RichFullColumnInfoSet(fciSet: Set[ColumnDefinition]) {
+      def getSelectSqlBody: String = fciSet.map(_.toColumnDefinition).mkString(", ")
+    }
+
+  }
+
+  class ColumnDefinition(val columnExpression: String,
+    val nowColumnName: String,
+    val originalColumn: ColumnWithTableName) {
+    def this(column: ColumnWithTableName, nowColumnName: String, originalColumn: ColumnWithTableName) = this(
+      column.toSql, nowColumnName, originalColumn
+    )
+
+    def this(table: TableForConstruct, column: Column) = this(
+      new ColumnWithTableName(table, column.columnName),
+      s"${table.name}__${column.columnName}__${column.scalaTypeName}",
+      new ColumnWithTableName(table, column.columnName)
+    )
+
+    val toColumnDefinition = s"$columnExpression AS $nowColumnName"
+
+    def bindUp(nestLevel: Int): ColumnDefinition = new ColumnDefinition(
+      s"GROUP_CONCAT(${this.columnExpression} SEPARATOR ',${nestLevel + 1}')",
+      this.nowColumnName + "s",
+      this.originalColumn
+    )
+
+    def updateTableName(newTableName: TableName): ColumnDefinition =
+      new ColumnDefinition(new ColumnWithTableName(newTableName, this.nowColumnName),
+        this.nowColumnName,
+        this.originalColumn)
+  }
+
   sealed trait JsValue {
     /**
       * 構造定義オブジェクトの中からテーブル構造のみを取り出す(もちろんTreeになる)
@@ -168,11 +211,11 @@ package object dsl {
     joinDefinitions: Seq[JoinDefinitionForConstruct],
     columns: Seq[Column]) {
 
-    private[this] def fullColumnInfos = columns.map(new FullColumnInfo(this, _)).toSet
+    private[this] def fullColumnInfos = columns.map(new ColumnDefinition(this, _)).toSet
 
     def toSql: SqlQuery = toSql(0)._1
 
-    private[dsl] def toSql(nestLevel: Int): (SqlQuery, Set[FullColumnInfo]) = {
+    private[dsl] def toSql(nestLevel: Int): (SqlQuery, Set[ColumnDefinition]) = {
       val children = joinDefinitions.zipWithIndex.map { case (jd, i) => jd.toSql(this,
         s"_$i",
         nestLevel)
@@ -193,7 +236,7 @@ package object dsl {
 
     private[this] def groupedBy(childTable: TableForConstruct,
       newTableName: String) = if (groupBy) {
-      val newFCI = new FullColumnInfo(childTable, childSideColumn).updateTableName(newTableName)
+      val newFCI = new ColumnDefinition(childTable, childSideColumn).updateTableName(newTableName)
       s" GROUP BY ${newFCI.nowColumnName}"
     } else
       ""
@@ -201,9 +244,9 @@ package object dsl {
     private[this] def onPart(parentTable: TableForConstruct,
       childTable: TableForConstruct,
       newChildTableName: TableName) = {
-      val newChildColumnName = new FullColumnInfo(childTable, childSideColumn).nowColumnName
-      s"ON ${new FQCN(parentTable, parentSideColumn.columnName).toSql} = ${
-        new FQCN(newChildTableName,
+      val newChildColumnName = new ColumnDefinition(childTable, childSideColumn).nowColumnName
+      s"ON ${new ColumnWithTableName(parentTable, parentSideColumn.columnName).toSql} = ${
+        new ColumnWithTableName(newChildTableName,
           newChildColumnName).toSql
       }"
     }
@@ -211,13 +254,13 @@ package object dsl {
     private[dsl] def toSql(parentTable: TableForConstruct,
       newChildTableName: String,
       nestLevel: Int):
-    (SqlQuery, Set[FullColumnInfo]) = {
+    (SqlQuery, Set[ColumnDefinition]) = {
       val plusLevel = if (groupBy) 1 else 0
       val (sql, oldFcis) = childSide.toSql(nestLevel + plusLevel)
       val fcis = oldFcis.map(_.updateTableName("A"))
       val newFcis = if (groupBy) {
         fcis.map { fci =>
-          if (fci.originalColumn == new FQCN(childSide, childSideColumn.columnName))
+          if (fci.originalColumn == new ColumnWithTableName(childSide, childSideColumn.columnName))
             fci
           else
             fci.bindUp(nestLevel)
@@ -234,48 +277,6 @@ package object dsl {
           newChildTableName)
       }", newNewFcis)
     }
-  }
-
-  // Fully Qualified Column Name テーブル名も省略していないカラム名(勝手に命名)
-  case class FQCN(val tableName: TableName, columnName: String) {
-    def this(table: TableForConstruct, columnName: ColumnName) = this(table.name, columnName)
-
-    val toSql = tableName + "." + columnName
-  }
-
-  object FullColumnInfo {
-
-    implicit class RichFullColumnInfoSet(fciSet: Set[FullColumnInfo]) {
-      def getSelectSqlBody: String = fciSet.map(_.toColumnDefinition).mkString(", ")
-    }
-
-  }
-
-  class FullColumnInfo(val columnExpression: String,
-    val nowColumnName: String,
-    val originalColumn: FQCN) {
-    def this(column: FQCN, nowColumnName: String, originalColumn: FQCN) = this(
-      column.toSql, nowColumnName, originalColumn
-    )
-
-    def this(table: TableForConstruct, column: Column) = this(
-      new FQCN(table, column.columnName),
-      s"${table.name}__${column.columnName}__${column.scalaTypeName}",
-      new FQCN(table, column.columnName)
-    )
-
-    val toColumnDefinition = s"$columnExpression AS $nowColumnName"
-
-    def bindUp(nestLevel: Int): FullColumnInfo = new FullColumnInfo(
-      s"GROUP_CONCAT(${this.columnExpression} SEPARATOR ',${nestLevel + 1}')",
-      this.nowColumnName + "s",
-      this.originalColumn
-    )
-
-    def updateTableName(newTableName: TableName): FullColumnInfo =
-      new FullColumnInfo(new FQCN(newTableName, this.nowColumnName),
-        this.nowColumnName,
-        this.originalColumn)
   }
 
   // TODO: 現在のプログラム上の制約。同じテーブルを複数回JOINすることができない(上で肉付けするときに
