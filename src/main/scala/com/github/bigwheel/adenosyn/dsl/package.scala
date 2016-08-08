@@ -12,14 +12,16 @@ package object dsl {
   type ColumnName = String
   type ScalaTypeName = String
 
+  private def sql(tableName: TableName, columnName: ColumnName) = tableName + "." + columnName
+
   case class Column(val columnName: ColumnName, val scalaTypeName: ScalaTypeName)
 
   // Fully Qualified Column Name テーブル名も省略していないカラム名(勝手に命名)
   // TODO: 第二引数をColumnにする
-  case class ColumnWithTableName(val tableName: TableName, columnName: String) {
-    def this(table: TableForConstruct, columnName: ColumnName) = this(table.name, columnName)
+  case class ColumnWithTableName(val tableName: TableName, column: Column) {
+    def this(table: TableForConstruct, column: Column) = this(table.name, column)
 
-    val toSql = tableName + "." + columnName
+    val toSql = sql(tableName, column.columnName)
   }
 
   object ColumnDefinition {
@@ -30,17 +32,14 @@ package object dsl {
 
   }
 
-  class ColumnDefinition(val columnExpression: String,
+  class ColumnDefinition private(val columnExpression: String,
     val nowColumnName: String,
     val originalColumn: ColumnWithTableName) {
-    def this(column: ColumnWithTableName, nowColumnName: String, originalColumn: ColumnWithTableName) = this(
-      column.toSql, nowColumnName, originalColumn
-    )
 
     def this(table: TableForConstruct, column: Column) = this(
-      new ColumnWithTableName(table, column.columnName),
+      sql(table.name, column.columnName),
       s"${table.name}__${column.columnName}__${column.scalaTypeName}",
-      new ColumnWithTableName(table, column.columnName)
+      new ColumnWithTableName(table, column)
     )
 
     val toColumnDefinition = s"$columnExpression AS $nowColumnName"
@@ -52,9 +51,10 @@ package object dsl {
     )
 
     def updateTableName(newTableName: TableName): ColumnDefinition =
-      new ColumnDefinition(new ColumnWithTableName(newTableName, this.nowColumnName),
+      new ColumnDefinition(sql(newTableName, this.nowColumnName),
         this.nowColumnName,
-        this.originalColumn)
+        this.originalColumn
+      )
   }
 
   sealed trait JsValue {
@@ -245,9 +245,8 @@ package object dsl {
       childTable: TableForConstruct,
       newChildTableName: TableName) = {
       val newChildColumnName = new ColumnDefinition(childTable, childSideColumn).nowColumnName
-      s"ON ${new ColumnWithTableName(parentTable, parentSideColumn.columnName).toSql} = ${
-        new ColumnWithTableName(newChildTableName,
-          newChildColumnName).toSql
+      s"ON ${new ColumnWithTableName(parentTable, parentSideColumn).toSql} = ${
+        sql(newChildTableName, newChildColumnName)
       }"
     }
 
@@ -260,7 +259,7 @@ package object dsl {
       val fcis = oldFcis.map(_.updateTableName("A"))
       val newFcis = if (groupBy) {
         fcis.map { fci =>
-          if (fci.originalColumn == new ColumnWithTableName(childSide, childSideColumn.columnName))
+          if (fci.originalColumn == new ColumnWithTableName(childSide, childSideColumn))
             fci
           else
             fci.bindUp(nestLevel)
