@@ -24,16 +24,16 @@ package object dsl {
     val toSql = sql(tableName, column.name)
   }
 
-  object ColumnSelectQuery {
+  private object ColumnSelectQuery {
 
-    implicit class RichFullColumnInfoSet(fciSet: Set[ColumnSelectQuery]) {
-      def getQuery: String = fciSet.map(_.toColumnDefinition).mkString(", ")
+    implicit class RichColumnSelectQuerySet(csqSet: Set[ColumnSelectQuery]) {
+      def getQuery: String = csqSet.map(_.toSql).mkString(", ")
     }
 
   }
 
   class ColumnSelectQuery private(columnExpression: String,
-    val nowColumnName: String,
+    val columnName: String,
     val originalColumn: TableNameAndColumn) {
 
     def this(table: TableForConstruct, column: Column) = this(
@@ -42,19 +42,17 @@ package object dsl {
       new TableNameAndColumn(table, column)
     )
 
-    val toColumnDefinition = s"$columnExpression AS $nowColumnName"
+    val toSql = s"$columnExpression AS $columnName"
 
     def bindUp(nestLevel: Int): ColumnSelectQuery = new ColumnSelectQuery(
       s"GROUP_CONCAT(${this.columnExpression} SEPARATOR ',${nestLevel + 1}')",
-      this.nowColumnName + "s",
+      this.columnName + "s",
       this.originalColumn
     )
 
-    def updateTableName(newTableName: TableName): ColumnSelectQuery =
-      new ColumnSelectQuery(sql(newTableName, this.nowColumnName),
-        this.nowColumnName,
-        this.originalColumn
-      )
+    def updateTableName(newTableName: TableName): ColumnSelectQuery = new ColumnSelectQuery(
+      sql(newTableName, this.columnName), this.columnName, this.originalColumn
+    )
   }
 
   sealed trait JsValue {
@@ -237,14 +235,14 @@ package object dsl {
     private[this] def groupedBy(childTable: TableForConstruct,
       newTableName: String) = if (groupBy) {
       val newFCI = new ColumnSelectQuery(childTable, childSideColumn).updateTableName(newTableName)
-      s" GROUP BY ${newFCI.nowColumnName}"
+      s" GROUP BY ${newFCI.columnName}"
     } else
       ""
 
     private[this] def onPart(parentTable: TableForConstruct,
       childTable: TableForConstruct,
       newChildTableName: TableName) = {
-      val newChildColumnName = new ColumnSelectQuery(childTable, childSideColumn).nowColumnName
+      val newChildColumnName = new ColumnSelectQuery(childTable, childSideColumn).columnName
       s"ON ${new TableNameAndColumn(parentTable, parentSideColumn).toSql} = ${
         sql(newChildTableName, newChildColumnName)
       }"
