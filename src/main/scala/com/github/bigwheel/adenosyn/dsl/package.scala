@@ -14,44 +14,44 @@ package object dsl {
 
   private def sql(tableName: TableName, columnName: ColumnName) = tableName + "." + columnName
 
-  case class Column(val columnName: ColumnName, val scalaTypeName: ScalaTypeName)
+  case class Column(val name: ColumnName, val scalaTypeName: ScalaTypeName)
 
   // Fully Qualified Column Name テーブル名も省略していないカラム名(勝手に命名)
   // TODO: 第二引数をColumnにする
-  case class ColumnWithTableName(val tableName: TableName, column: Column) {
+  case class TableNameAndColumn(val tableName: TableName, column: Column) {
     def this(table: TableForConstruct, column: Column) = this(table.name, column)
 
-    val toSql = sql(tableName, column.columnName)
+    val toSql = sql(tableName, column.name)
   }
 
-  object ColumnDefinition {
+  object ColumnSelectQuery {
 
-    implicit class RichFullColumnInfoSet(fciSet: Set[ColumnDefinition]) {
-      def getSelectSqlBody: String = fciSet.map(_.toColumnDefinition).mkString(", ")
+    implicit class RichFullColumnInfoSet(fciSet: Set[ColumnSelectQuery]) {
+      def getQuery: String = fciSet.map(_.toColumnDefinition).mkString(", ")
     }
 
   }
 
-  class ColumnDefinition private(val columnExpression: String,
+  class ColumnSelectQuery private(columnExpression: String,
     val nowColumnName: String,
-    val originalColumn: ColumnWithTableName) {
+    val originalColumn: TableNameAndColumn) {
 
     def this(table: TableForConstruct, column: Column) = this(
-      sql(table.name, column.columnName),
-      s"${table.name}__${column.columnName}__${column.scalaTypeName}",
-      new ColumnWithTableName(table, column)
+      sql(table.name, column.name),
+      s"${table.name}__${column.name}__${column.scalaTypeName}",
+      new TableNameAndColumn(table, column)
     )
 
     val toColumnDefinition = s"$columnExpression AS $nowColumnName"
 
-    def bindUp(nestLevel: Int): ColumnDefinition = new ColumnDefinition(
+    def bindUp(nestLevel: Int): ColumnSelectQuery = new ColumnSelectQuery(
       s"GROUP_CONCAT(${this.columnExpression} SEPARATOR ',${nestLevel + 1}')",
       this.nowColumnName + "s",
       this.originalColumn
     )
 
-    def updateTableName(newTableName: TableName): ColumnDefinition =
-      new ColumnDefinition(sql(newTableName, this.nowColumnName),
+    def updateTableName(newTableName: TableName): ColumnSelectQuery =
+      new ColumnSelectQuery(sql(newTableName, this.nowColumnName),
         this.nowColumnName,
         this.originalColumn
       )
@@ -211,17 +211,17 @@ package object dsl {
     joinDefinitions: Seq[JoinDefinitionForConstruct],
     columns: Seq[Column]) {
 
-    private[this] def fullColumnInfos = columns.map(new ColumnDefinition(this, _)).toSet
+    private[this] def fullColumnInfos = columns.map(new ColumnSelectQuery(this, _)).toSet
 
     def toSql: SqlQuery = toSql(0)._1
 
-    private[dsl] def toSql(nestLevel: Int): (SqlQuery, Set[ColumnDefinition]) = {
+    private[dsl] def toSql(nestLevel: Int): (SqlQuery, Set[ColumnSelectQuery]) = {
       val children = joinDefinitions.zipWithIndex.map { case (jd, i) => jd.toSql(this,
         s"_$i",
         nestLevel)
       }
       val allFcis = fullColumnInfos ++ children.flatMap(_._2)
-      val sql = s"SELECT ${allFcis.getSelectSqlBody} FROM $name"
+      val sql = s"SELECT ${allFcis.getQuery} FROM $name"
 
       ((sql +: children.map(_._1)).mkString(" "), allFcis)
     }
@@ -236,7 +236,7 @@ package object dsl {
 
     private[this] def groupedBy(childTable: TableForConstruct,
       newTableName: String) = if (groupBy) {
-      val newFCI = new ColumnDefinition(childTable, childSideColumn).updateTableName(newTableName)
+      val newFCI = new ColumnSelectQuery(childTable, childSideColumn).updateTableName(newTableName)
       s" GROUP BY ${newFCI.nowColumnName}"
     } else
       ""
@@ -244,8 +244,8 @@ package object dsl {
     private[this] def onPart(parentTable: TableForConstruct,
       childTable: TableForConstruct,
       newChildTableName: TableName) = {
-      val newChildColumnName = new ColumnDefinition(childTable, childSideColumn).nowColumnName
-      s"ON ${new ColumnWithTableName(parentTable, parentSideColumn).toSql} = ${
+      val newChildColumnName = new ColumnSelectQuery(childTable, childSideColumn).nowColumnName
+      s"ON ${new TableNameAndColumn(parentTable, parentSideColumn).toSql} = ${
         sql(newChildTableName, newChildColumnName)
       }"
     }
@@ -253,20 +253,20 @@ package object dsl {
     private[dsl] def toSql(parentTable: TableForConstruct,
       newChildTableName: String,
       nestLevel: Int):
-    (SqlQuery, Set[ColumnDefinition]) = {
+    (SqlQuery, Set[ColumnSelectQuery]) = {
       val plusLevel = if (groupBy) 1 else 0
       val (sql, oldFcis) = childSide.toSql(nestLevel + plusLevel)
       val fcis = oldFcis.map(_.updateTableName("A"))
       val newFcis = if (groupBy) {
         fcis.map { fci =>
-          if (fci.originalColumn == new ColumnWithTableName(childSide, childSideColumn))
+          if (fci.originalColumn == new TableNameAndColumn(childSide, childSideColumn))
             fci
           else
             fci.bindUp(nestLevel)
         }
       } else fcis
       val newNewFcis = newFcis.map(_.updateTableName(newChildTableName))
-      val shallowNestSql = s"SELECT ${newFcis.getSelectSqlBody} FROM ( $sql ) AS A ${
+      val shallowNestSql = s"SELECT ${newFcis.getQuery} FROM ( $sql ) AS A ${
         groupedBy(childSide,
           "A")
       }"
