@@ -12,7 +12,8 @@ package object dsl {
   type ColumnName = String
   type ScalaTypeName = String
 
-  private def sql(tableName: TableName, columnName: ColumnName) = tableName + "." + columnName
+  private def toFullColumnPath(tableName: TableName, columnName: ColumnName) =
+    tableName + "." + columnName
 
   case class Column(val name: ColumnName, val scalaTypeName: ScalaTypeName)
 
@@ -21,37 +22,40 @@ package object dsl {
   case class TableNameAndColumn(val tableName: TableName, column: Column) {
     def this(table: TableForConstruct, column: Column) = this(table.name, column)
 
-    val toSql = sql(tableName, column.name)
+    val toSql = toFullColumnPath(tableName, column.name)
   }
 
-  private object ColumnSelectQuery {
+  private object ColumnSelectExpr {
 
-    implicit class RichColumnSelectQuerySet(csqSet: Set[ColumnSelectQuery]) {
+    implicit class RichColumnSelectQuerySet(csqSet: Set[ColumnSelectExpr]) {
       def getQuery: String = csqSet.map(_.toSql).mkString(", ")
+    }
+
+    def ensureColumnInfoToAlias(table: TableForConstruct, column: Column) = {
+      val tnac = new TableNameAndColumn(table, column)
+      new ColumnSelectExpr(tnac.toSql, s"${table.name}__${column.name}__${column.scalaTypeName}",
+        tnac)
     }
 
   }
 
-  class ColumnSelectQuery private(columnExpression: String,
-    val columnName: String,
+  /**
+    * https://dev.mysql.com/doc/refman/5.6/ja/select.html
+    */
+  class ColumnSelectExpr private(selectExpr: String,
+    val aliasName: String,
     val originalColumn: TableNameAndColumn) {
 
-    def this(table: TableForConstruct, column: Column) = this(
-      sql(table.name, column.name),
-      s"${table.name}__${column.name}__${column.scalaTypeName}",
-      new TableNameAndColumn(table, column)
-    )
+    val toSql = s"$selectExpr AS $aliasName"
 
-    val toSql = s"$columnExpression AS $columnName"
-
-    def bindUp(nestLevel: Int): ColumnSelectQuery = new ColumnSelectQuery(
-      s"GROUP_CONCAT(${this.columnExpression} SEPARATOR ',${nestLevel + 1}')",
-      this.columnName + "s",
+    def bindUp(nestLevel: Int): ColumnSelectExpr = new ColumnSelectExpr(
+      s"GROUP_CONCAT(${this.selectExpr} SEPARATOR ',${nestLevel + 1}')",
+      this.aliasName + "s",
       this.originalColumn
     )
 
-    def updateTableName(newTableName: TableName): ColumnSelectQuery = new ColumnSelectQuery(
-      sql(newTableName, this.columnName), this.columnName, this.originalColumn
+    def updateTableName(newTableName: TableName): ColumnSelectExpr = new ColumnSelectExpr(
+      toFullColumnPath(newTableName, this.aliasName), this.aliasName, this.originalColumn
     )
   }
 
@@ -209,16 +213,17 @@ package object dsl {
     joinDefinitions: Seq[JoinDefinitionForConstruct],
     columns: Seq[Column]) {
 
-    private[this] def fullColumnInfos = columns.map(new ColumnSelectQuery(this, _)).toSet
+    private[this] def columnSelectExprs =
+      columns.map(ColumnSelectExpr.ensureColumnInfoToAlias(this, _)).toSet
 
     def toSql: SqlQuery = toSql(0)._1
 
-    private[dsl] def toSql(nestLevel: Int): (SqlQuery, Set[ColumnSelectQuery]) = {
+    private[dsl] def toSql(nestLevel: Int): (SqlQuery, Set[ColumnSelectExpr]) = {
       val children = joinDefinitions.zipWithIndex.map { case (jd, i) => jd.toSql(this,
         s"_$i",
         nestLevel)
       }
-      val allFcis = fullColumnInfos ++ children.flatMap(_._2)
+      val allFcis = columnSelectExprs ++ children.flatMap(_._2)
       val sql = s"SELECT ${allFcis.getQuery} FROM $name"
 
       ((sql +: children.map(_._1)).mkString(" "), allFcis)
@@ -232,26 +237,28 @@ package object dsl {
     childSide: TableForConstruct
   ) {
 
-    private[this] def groupedBy(childTable: TableForConstruct,
-      newTableName: String) = if (groupBy) {
-      val newFCI = new ColumnSelectQuery(childTable, childSideColumn).updateTableName(newTableName)
-      s" GROUP BY ${newFCI.columnName}"
-    } else
-      ""
+    private[this] def groupedBy(childTable: TableForConstruct, newTableName: String) =
+      if (groupBy) {
+        val newColumnSelectExpr = ColumnSelectExpr.
+          ensureColumnInfoToAlias(childTable, childSideColumn).updateTableName(newTableName)
+        s" GROUP BY ${newColumnSelectExpr.aliasName}"
+      } else
+        ""
 
     private[this] def onPart(parentTable: TableForConstruct,
       childTable: TableForConstruct,
       newChildTableName: TableName) = {
-      val newChildColumnName = new ColumnSelectQuery(childTable, childSideColumn).columnName
+      val newChildColumnName =
+        ColumnSelectExpr.ensureColumnInfoToAlias(childTable, childSideColumn).aliasName
       s"ON ${new TableNameAndColumn(parentTable, parentSideColumn).toSql} = ${
-        sql(newChildTableName, newChildColumnName)
+        toFullColumnPath(newChildTableName, newChildColumnName)
       }"
     }
 
     private[dsl] def toSql(parentTable: TableForConstruct,
       newChildTableName: String,
       nestLevel: Int):
-    (SqlQuery, Set[ColumnSelectQuery]) = {
+    (SqlQuery, Set[ColumnSelectExpr]) = {
       val plusLevel = if (groupBy) 1 else 0
       val (sql, oldFcis) = childSide.toSql(nestLevel + plusLevel)
       val fcis = oldFcis.map(_.updateTableName("A"))
