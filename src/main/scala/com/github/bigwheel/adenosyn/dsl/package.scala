@@ -63,23 +63,41 @@ package object dsl {
     /**
       * 構造定義オブジェクトの中からテーブル構造のみを取り出す(もちろんTreeになる)
       */
-    def getTableTree: Seq[JoinDefinitionBase]
+    def constructTableTree: Seq[JoinDefinitionBase]
 
     /**
       * 使用するカラム一覧を出す。ただしJoinDefinitionで使われるカラムは除く
       * (そちらは統合したツリーに対して計算する方が楽であるため、別で計算する)
       */
     def listUseColumns: Seq[(TableName, Column)]
+
+    def toSql: SqlQuery = {
+      def enumerateUseColumnsByTable(jsValue: JsValue,
+        tableTree: Table): Map[TableName, Seq[Column]] = {
+        val columns = jsValue.listUseColumns ++ tableTree.listUseColumns
+        columns.groupBy(_._1).mapValues(_.map(_._2))
+      }
+      def appendColumnInfoToTree(tableTree: Table,
+        columnDetails: Map[TableName, Seq[Column]]): TableForConstruct =
+        tableTree.appendColumns(columnDetails)
+
+
+      val tableTreeWithoutColumns = constructTableTree.head.childSide
+      val columnDetails = enumerateUseColumnsByTable(this, tableTreeWithoutColumns)
+      val tableTree = appendColumnInfoToTree(tableTreeWithoutColumns, columnDetails)
+
+      tableTree.toSql
+    }
   }
 
   final case class JsString(tableName: String, columnName: String) extends JsValue {
-    def getTableTree: Seq[JoinDefinitionBase] = Seq.empty
+    def constructTableTree: Seq[JoinDefinitionBase] = Seq.empty
 
     def listUseColumns = Seq((tableName, new Column(columnName, "String")))
   }
 
   final case class JsInt(tableName: String, columnName: String) extends JsValue {
-    def getTableTree: Seq[JoinDefinitionBase] = Seq.empty
+    def constructTableTree: Seq[JoinDefinitionBase] = Seq.empty
 
     def listUseColumns = Seq((tableName, new Column(columnName, "Int")))
   }
@@ -87,24 +105,24 @@ package object dsl {
   final case class JsObject(
     jdo: Option[JoinDefinitionBase],
     properties: Map[String, JsValue]) extends JsValue {
-    def getTableTree: Seq[JoinDefinitionBase] = jdo match {
+    def constructTableTree: Seq[JoinDefinitionBase] = jdo match {
       case Some(jd) =>
-        val newJds = properties.values.flatMap(_.getTableTree).toSeq ++ jd.childSide.joinDefinitions
+        val newJds = properties.values.flatMap(_.constructTableTree).toSeq ++ jd.childSide.joinDefinitions
         Seq(jd.copy(jd.childSide.update(newJds)))
       case None =>
-        properties.values.flatMap(_.getTableTree).toSeq
+        properties.values.flatMap(_.constructTableTree).toSeq
     }
 
     def listUseColumns = properties.values.flatMap(_.listUseColumns).toSeq
   }
 
   final case class JsArray(jdo: Option[JoinDefinitionBase], elem: JsValue) extends JsValue {
-    def getTableTree: Seq[JoinDefinitionBase] = jdo match {
+    def constructTableTree: Seq[JoinDefinitionBase] = jdo match {
       case Some(jd) =>
-        val newJds = elem.getTableTree ++ jd.childSide.joinDefinitions
+        val newJds = elem.constructTableTree ++ jd.childSide.joinDefinitions
         Seq(jd.copy(new Table(jd.childSide.name, newJds: _*)))
       case None =>
-        elem.getTableTree
+        elem.constructTableTree
     }
 
     def listUseColumns = elem.listUseColumns
@@ -183,30 +201,14 @@ package object dsl {
   //------------------------------------//
 
   def fetchJsonResult(jsValue: JsValue)(implicit session: DBSession): List[Json] = {
-    val tableTreeWithoutColumns = digAndMergeTableTree(jsValue)
-    val columnDetails = enumerateUseColumnsByTable(jsValue, tableTreeWithoutColumns)
-    val tableTree = appendColumnInfoToTree(tableTreeWithoutColumns, columnDetails)
-
-    val queryString: SqlQuery = tableTree.toSql
+    val queryString: SqlQuery = jsValue.toSql
     val sqlResult: List[Map[String, Any]] = SQL(queryString).map(_.toMap).list.apply()
     val parsedColumnss: List[List[ParsedColumn]] = structureSqlResult(sqlResult)
     def sqlResultToJson: List[Json] = toJsonObj(parsedColumnss, jsValue)
     sqlResultToJson
   }
 
-  private def digAndMergeTableTree(jsValue: JsValue): Table = jsValue.getTableTree.head.childSide
-
-  private def enumerateUseColumnsByTable(jsValue: JsValue,
-    tableTree: Table): Map[TableName, Seq[Column]] = {
-    val columns = jsValue.listUseColumns ++ tableTree.listUseColumns
-    columns.groupBy(_._1).mapValues(_.map(_._2))
-  }
-
   private type SqlQuery = String
-
-  private def appendColumnInfoToTree(tableTree: Table,
-    columnDetails: Map[TableName, Seq[Column]]): TableForConstruct =
-    tableTree.appendColumns(columnDetails)
 
   class TableForConstruct(
     val name: TableName,
