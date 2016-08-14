@@ -355,7 +355,7 @@ package object dsl {
 
             val tnac = TableNameAndColumn(tableName,
               Column(trueColumnName, scalaTypeName, isPrimaryKey.toBoolean))
-            new Cell(tnac, dimention, drillDown(0, rawValue.toString))
+            new Cell(tnac, dimention, drillDown(0, rawValue.toString), rawValue.toString)
         }
       }
 
@@ -368,11 +368,12 @@ package object dsl {
     */
   private class Cell(val tnac: TableNameAndColumn,
     dimention: Int,
-    val value: Any) {
+    val value: Any,
+    val rawValue: String) {
     // arrayじゃなくても結果返すので注意(ネスト(jsObjecなど)の中から外側の値を参照できるようにするため)
     def drillDown(index: Int): Cell = value match {
-      case v: Array[_] => new Cell(tnac, dimention - 1, v(index))
-      case v => new Cell(tnac, dimention, v)
+      case v: Array[_] => new Cell(tnac, dimention - 1, v(index), rawValue)
+      case v => new Cell(tnac, dimention, v, rawValue)
     }
 
     val length: Option[Int] = value match {
@@ -382,18 +383,26 @@ package object dsl {
   }
 
   private def constructArgonautJson(rows: List[List[Cell]], jsonStructure: JsValue): List[Json] = {
-    def parseRow(row: List[Cell], jsonStructureTree: JsValue): Json = {
+    def parseRow(row: List[Cell], jsonStructureTree: JsValue, firstLevelCall: Boolean): Json = {
       def getCell(tableName: String, columnName: String): Cell =
         row.find(cell => cell.tnac.tableName == tableName && cell.tnac.column.name == columnName).get
 
       jsonStructureTree match {
         case JsObject(_, properties) =>
-          Json(properties.map { case (k, v) => k := parseRow(row, v) }.toSeq: _*)
+          val base = Json(properties.map { case (k, v) => k := parseRow(row, v, false) }.toSeq: _*)
+          if (firstLevelCall) {
+            val primarykeyParts = row.filter(_.tnac.column.isPrimaryKey)
+            if (primarykeyParts.isEmpty)
+              base
+            else
+              base.deepmerge(Json("_id" := primarykeyParts.map(_.rawValue).mkString("_")))
+          } else
+            base
         case JsArray(_, jsValue) =>
           val arrayLengths = row.flatMap(_.length).distinct
           require(arrayLengths.length == 1) // Arrayの長さに矛盾がないか確認
           (0 until arrayLengths.head).map { index =>
-            parseRow(row.map(_.drillDown(index)), jsValue)
+            parseRow(row.map(_.drillDown(index)), jsValue, false)
           }.toList |> jArray.apply
         case JsString(tableName, columnName, _) =>
           jString(getCell(tableName, columnName).value.asInstanceOf[String])
@@ -402,7 +411,7 @@ package object dsl {
       }
     }
 
-    for (row <- rows) yield parseRow(row, jsonStructure)
+    for (row <- rows) yield parseRow(row, jsonStructure, true)
   }
 
 }
