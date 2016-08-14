@@ -41,7 +41,8 @@ package object dsl {
 
     def ensureColumnInfoToAlias(table: TableWithColumns, column: Column) = {
       val tnac = new TableNameAndColumn(table, column)
-      new ColumnSelectExpr(tnac.toSql, s"${table.name}__${column.name}__${column.scalaTypeName}",
+      new ColumnSelectExpr(tnac.toSql,
+        s"${table.name}__${column.name}__${column.scalaTypeName}__${column.isPrimaryKey.toString}__",
         tnac)
     }
 
@@ -337,9 +338,9 @@ package object dsl {
   private def structureCellss(rows: List[Map[String, Any]]): List[List[Cell]] =
     for (row <- rows) yield
       for ((engravedColumnName, rawValue) <- row.toList) yield {
-        val pattern = """\A(.+)__(.+?)__(.+?)(s*)\Z""".r
+        val pattern = """\A(.+)__(.+?)__(.+?)__(.+?)__(s*)\Z""".r
         engravedColumnName match {
-          case pattern(tableName, trueColumnName, scalaTypeName, dimentionMarker) =>
+          case pattern(tableName, trueColumnName, scalaTypeName, isPrimaryKey, dimentionMarker) =>
             val dimention = dimentionMarker.count(_ == 's')
 
             def drillDown(level: Int, str: String): Any = if (dimention - level == 0) {
@@ -352,7 +353,8 @@ package object dsl {
               splittedValue.map(drillDown(level + 1, _))
             }
 
-            new Cell(tableName, trueColumnName, dimention, drillDown(0, rawValue.toString))
+            new Cell(tableName, Column(trueColumnName, scalaTypeName, isPrimaryKey.toBoolean),
+              dimention, drillDown(0, rawValue.toString))
         }
       }
 
@@ -364,13 +366,13 @@ package object dsl {
     * valueはScalaのPrimitive型ないしそれのX次元Array
     */
   private class Cell(val tableName: String,
-    val columnName: String,
+    val column: Column,
     dimention: Int,
     val value: Any) {
     // arrayじゃなくても結果返すので注意(ネスト(jsObjecなど)の中から外側の値を参照できるようにするため)
     def drillDown(index: Int): Cell = value match {
-      case v: Array[_] => new Cell(tableName, columnName, dimention - 1, v(index))
-      case v => new Cell(tableName, columnName, dimention, v)
+      case v: Array[_] => new Cell(tableName, column, dimention - 1, v(index))
+      case v => new Cell(tableName, column, dimention, v)
     }
 
     val length: Option[Int] = value match {
@@ -382,7 +384,7 @@ package object dsl {
   private def constructArgonautJson(rows: List[List[Cell]], jsonStructure: JsValue): List[Json] = {
     def parseRow(row: List[Cell], jsonStructureTree: JsValue): Json = {
       def getCell(tableName: String, columnName: String): Cell =
-        row.find(cell => cell.tableName == tableName && cell.columnName == columnName).get
+        row.find(cell => cell.tableName == tableName && cell.column.name == columnName).get
 
       jsonStructureTree match {
         case JsObject(_, properties) =>
@@ -393,9 +395,9 @@ package object dsl {
           (0 until arrayLengths.head).map { index =>
             parseRow(row.map(_.drillDown(index)), jsValue)
           }.toList |> jArray.apply
-        case JsString(tableName, columnName) =>
+        case JsString(tableName, columnName, _) =>
           jString(getCell(tableName, columnName).value.asInstanceOf[String])
-        case JsInt(tableName, columnName) =>
+        case JsInt(tableName, columnName, _) =>
           jNumber(getCell(tableName, columnName).value.asInstanceOf[Int])
       }
     }
