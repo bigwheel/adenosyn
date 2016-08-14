@@ -353,8 +353,9 @@ package object dsl {
               splittedValue.map(drillDown(level + 1, _))
             }
 
-            new Cell(tableName, Column(trueColumnName, scalaTypeName, isPrimaryKey.toBoolean),
-              dimention, drillDown(0, rawValue.toString))
+            val tnac = TableNameAndColumn(tableName,
+              Column(trueColumnName, scalaTypeName, isPrimaryKey.toBoolean))
+            new Cell(tnac, dimention, drillDown(0, rawValue.toString))
         }
       }
 
@@ -365,14 +366,13 @@ package object dsl {
     *
     * valueはScalaのPrimitive型ないしそれのX次元Array
     */
-  private class Cell(val tableName: String,
-    val column: Column,
+  private class Cell(val tnac: TableNameAndColumn,
     dimention: Int,
     val value: Any) {
     // arrayじゃなくても結果返すので注意(ネスト(jsObjecなど)の中から外側の値を参照できるようにするため)
     def drillDown(index: Int): Cell = value match {
-      case v: Array[_] => new Cell(tableName, column, dimention - 1, v(index))
-      case v => new Cell(tableName, column, dimention, v)
+      case v: Array[_] => new Cell(tnac, dimention - 1, v(index))
+      case v => new Cell(tnac, dimention, v)
     }
 
     val length: Option[Int] = value match {
@@ -384,7 +384,7 @@ package object dsl {
   private def constructArgonautJson(rows: List[List[Cell]], jsonStructure: JsValue): List[Json] = {
     def parseRow(row: List[Cell], jsonStructureTree: JsValue): Json = {
       def getCell(tableName: String, columnName: String): Cell =
-        row.find(cell => cell.tableName == tableName && cell.column.name == columnName).get
+        row.find(cell => cell.tnac.tableName == tableName && cell.tnac.column.name == columnName).get
 
       jsonStructureTree match {
         case JsObject(_, properties) =>
