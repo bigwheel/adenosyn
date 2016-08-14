@@ -390,13 +390,11 @@ package object dsl {
       jsonStructureTree match {
         case JsObject(_, properties) =>
           val base = Json(properties.map { case (k, v) => k := parseRow(row, v, false) }.toSeq: _*)
-          if (firstLevelCall) {
-            val primarykeyParts = row.filter(_.tnac.column.isPrimaryKey)
-            if (primarykeyParts.isEmpty)
-              base
-            else
-              base.deepmerge(Json("_id" := primarykeyParts.map(_.rawValue).mkString("_")))
-          } else
+          val primarykeyParts = row.filter(_.tnac.column.isPrimaryKey)
+          // 現行ではPrimaryKeyが一つも立っていないなら_idプロパティは作らない
+          if (firstLevelCall && primarykeyParts.nonEmpty)
+            base.deepmerge(Json("_id" := primarykeyParts.map(_.rawValue).mkString("_")))
+          else
             base
         case JsArray(_, jsValue) =>
           val arrayLengths = row.flatMap(_.length).distinct

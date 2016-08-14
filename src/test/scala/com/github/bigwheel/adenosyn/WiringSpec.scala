@@ -91,7 +91,7 @@ class WiringSpec extends FunSpec with Matchers {
         RootJoinCondition(
           Table(
             "artist",
-            JoinCondition("id" -> "Int", false, "artist_id" -> "Int", Table("artist_kana"))
+            JoinCondition(("id", "Int", true), false, "artist_id" -> "Int", Table("artist_kana"))
           )
         ).some,
         Map[String, JsValue](
@@ -101,11 +101,12 @@ class WiringSpec extends FunSpec with Matchers {
             JoinCondition("id" -> "Int", true, "artist_id" -> "Int",
               Table("music")
             ).some,
-            JsString("music", "name")
+            JsString("music", "name", true)
           )
         )
       ),
       List(Json(
+        "_id" := "深愛,1innocent starter_1",
         "name" := "水樹奈々",
         "kana" := "みずきなな",
         "musics" := Json.array(jString("深愛"), jString("innocent starter"))
@@ -213,6 +214,22 @@ class WiringSpec extends FunSpec with Matchers {
         )
       ),
       List(Json("_id" := "水樹奈々", "name" := "水樹奈々"))
+    ),
+    TestCase(
+      "JoinConditionで使用されるカラムからでも_idを作れる",
+      JsObject(
+        RootJoinCondition(
+          Table(
+            "artist",
+            JoinCondition(("id", "Int", true), false, "artist_id" -> "Int", Table("artist_kana"))
+          )
+        ).some,
+        Map[String, JsValue](
+          "name" -> JsString("artist", "name"),
+          "kana" -> JsString("artist_kana", "kana")
+        )
+      ),
+      List(Json("_id" := "1", "name" := "水樹奈々", "kana" := "みずきなな"))
     )
   )
 
