@@ -203,6 +203,16 @@ class WiringSpec extends FunSpec with Matchers {
           )
         )
       ))
+    ),
+    TestCase(
+      "_idが作られる",
+      JsObject(
+        RootJoinCondition(Table("artist")).some,
+        Map[String, JsValue](
+          "name" -> JsString("artist", "name", true)
+        )
+      ),
+      List(Json("_id" := "水樹奈々", "name" := "水樹奈々"))
     )
   )
 

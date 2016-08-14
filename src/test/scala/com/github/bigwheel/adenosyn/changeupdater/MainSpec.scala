@@ -67,7 +67,7 @@ class MainSpec extends FunSpec with Matchers with BeforeAndAfter {
         RootJoinCondition(
           Table(
             "artist",
-            JoinCondition("id" -> "Int", false, "artist_id" -> "Int", Table("artist_kana"))
+            JoinCondition(("id", "Int", true), false, "artist_id" -> "Int", Table("artist_kana"))
           )
         ).some,
         Map[String, JsValue](

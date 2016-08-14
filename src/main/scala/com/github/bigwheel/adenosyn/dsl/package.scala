@@ -19,7 +19,11 @@ package object dsl {
   private def toFullColumnPath(tableName: TableName, columnName: ColumnName) =
     tableName + "." + columnName
 
-  case class Column(val name: ColumnName, val scalaTypeName: ScalaTypeName)
+  case class Column(
+    name: ColumnName,
+    scalaTypeName: ScalaTypeName,
+    isPrimaryKey: Boolean = false
+  )
 
   // Fully Qualified Column Name テーブル名も省略していないカラム名(勝手に命名)
   // TODO: 第二引数をColumnにする
@@ -98,16 +102,24 @@ package object dsl {
 
   }
 
-  final case class JsString(tableName: String, columnName: String) extends JsValue {
+  final case class JsString(
+    tableName: String,
+    columnName: String,
+    isPrimaryKey: Boolean = false
+  ) extends JsValue {
     def constructTableTree = Seq.empty
 
-    def listUseColumns = Seq((tableName, new Column(columnName, "String")))
+    def listUseColumns = Seq((tableName, new Column(columnName, "String", isPrimaryKey)))
   }
 
-  final case class JsInt(tableName: String, columnName: String) extends JsValue {
+  final case class JsInt(
+    tableName: String,
+    columnName: String,
+    isPrimaryKey: Boolean = false
+  ) extends JsValue {
     def constructTableTree = Seq.empty
 
-    def listUseColumns = Seq((tableName, new Column(columnName, "Int")))
+    def listUseColumns = Seq((tableName, new Column(columnName, "Int", isPrimaryKey)))
   }
 
   final case class JsObject(
@@ -187,6 +199,15 @@ package object dsl {
       childSideColumn: (ColumnName, ScalaTypeName),
       childTable: Table
     ): JoinCondition = apply(new Column(parentSideColumn._1, parentSideColumn._2), groupBy,
+      new Column(childSideColumn._1, childSideColumn._2), childTable)
+
+    def apply(
+      parentSideColumn: (ColumnName, ScalaTypeName, Boolean),
+      groupBy: Boolean,
+      childSideColumn: (ColumnName, ScalaTypeName),
+      childTable: Table
+    ): JoinCondition = apply(
+      new Column(parentSideColumn._1, parentSideColumn._2, parentSideColumn._3), groupBy,
       new Column(childSideColumn._1, childSideColumn._2), childTable)
   }
 
