@@ -2,6 +2,7 @@ name := "adenosyn"
 version := "1.0.0"
 scalaVersion := "2.11.8"
 scalacOptions ++= Seq("-unchecked", "-deprecation")
+resolvers += "Artima Maven Repository" at "http://repo.artima.com/releases"
 // @formatter:off
 libraryDependencies ++= Seq(
   "org.scalactic"          %% "scalactic"            % "2.2.6",
