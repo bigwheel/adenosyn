@@ -13,7 +13,7 @@ import scalikejdbc.using
 
 package object sqlutil {
 
-  private lazy val ipAddress = Process("otto dev address").!!.stripLineEnd
+  private val ipAddress = "127.0.0.1"
 
   /**
     * どう考えてもここにあるべきじゃない・・
