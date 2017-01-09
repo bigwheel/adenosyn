@@ -7,7 +7,7 @@ import org.scalatest.Matchers
 import scalikejdbc._
 import scalikejdbc.metadata.Column
 
-class MainSpec extends FunSpec with Matchers {
+class ChangeRecorderSpec extends FunSpec with Matchers {
 
   sqlutil.suppressLog()
 
