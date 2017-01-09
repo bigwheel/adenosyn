@@ -2,10 +2,14 @@ package com.github.bigwheel.adenosyn.changerecorder
 
 import scalikejdbc._
 
-class ChangeRecorder private(observeePool: ConnectionPool, recordPool: ConnectionPool) {
-  def this(observeeDbUrl: String, recordDbUrl: String, user: String, password: String) = this(
-    Commons2ConnectionPoolFactory(observeeDbUrl, user, password),
-    Commons2ConnectionPoolFactory(recordDbUrl, user, password)
+class JdbcUrl(val plainUrl: String, val dbName: String)
+
+class ChangeRecorder private(observeeDbName: String, recordDbName: String,
+  observeePool: ConnectionPool, recordPool: ConnectionPool) {
+  def this(observeeDbUrl: JdbcUrl, recordDbUrl: JdbcUrl, user: String, password: String) = this(
+    observeeDbUrl.dbName, recordDbUrl.dbName,
+    Commons2ConnectionPoolFactory(observeeDbUrl.plainUrl, user, password),
+    Commons2ConnectionPoolFactory(recordDbUrl.plainUrl, user, password)
   )
 
   def setUp() = {
@@ -19,24 +23,26 @@ class ChangeRecorder private(observeePool: ConnectionPool, recordPool: Connectio
               withFilter(_.isPrimaryKey).map(_.name)
             val primaryColumnNames = primaryColumnNameList.mkString(", ")
 
-            SQL(s"CREATE TABLE IF NOT EXISTS $tableName (PRIMARY KEY($primaryColumnNames)) AS " +
-              s"SELECT $primaryColumnNames FROM observee.$tableName WHERE FALSE").execute.apply()
+            SQL( // 監視対象のテーブルと全く同じカラム定義になるようCREATE TABLE ... AS SELECT文を使う
+              s"CREATE TABLE IF NOT EXISTS $tableName (PRIMARY KEY($primaryColumnNames)) AS " +
+              s"SELECT $primaryColumnNames FROM $observeeDbName.$tableName WHERE FALSE"
+            ).execute.apply()
 
             observeeDb.autoCommit { implicit session =>
               val queries = Seq(
                 s"""CREATE TRIGGER changerecorder_observee_${tableName}_insert AFTER INSERT
-                    |ON observee.$tableName FOR EACH ROW
-                    |REPLACE INTO record.$tableName($primaryColumnNames)
+                    |ON $observeeDbName.$tableName FOR EACH ROW
+                    |REPLACE INTO $recordDbName.$tableName($primaryColumnNames)
                     |VALUES(${primaryColumnNameList.map("NEW." + _).mkString(", ")})""",
                 s"""CREATE TRIGGER changerecorder_observee_${tableName}_update AFTER UPDATE
-                    |ON observee.$tableName FOR EACH ROW
-                    |REPLACE INTO record.$tableName($primaryColumnNames)
+                    |ON $observeeDbName.$tableName FOR EACH ROW
+                    |REPLACE INTO $recordDbName.$tableName($primaryColumnNames)
                     |VALUES
                     |(${primaryColumnNameList.map("OLD." + _).mkString(", ")}),
                     |(${primaryColumnNameList.map("NEW." + _).mkString(", ")})""",
                 s"""CREATE TRIGGER changerecorder_observee_${tableName}_delete AFTER DELETE
-                    |ON observee.$tableName FOR EACH ROW
-                    |REPLACE INTO record.$tableName($primaryColumnNames)
+                    |ON $observeeDbName.$tableName FOR EACH ROW
+                    |REPLACE INTO $recordDbName.$tableName($primaryColumnNames)
                     |VALUES(${primaryColumnNameList.map("OLD." + _).mkString(", ")})"""
               )
               queries.map(_.stripMargin.replace('\n', ' ')).foreach(SQL(_).execute.apply())
@@ -51,10 +57,10 @@ class ChangeRecorder private(observeePool: ConnectionPool, recordPool: Connectio
     using(DB(observeePool.borrow)) { observeeDb =>
       observeeDb.autoCommit { implicit session =>
         val q = "SELECT TRIGGER_NAME FROM information_schema.triggers " +
-          "WHERE TRIGGER_SCHEMA = 'observee'"
+          s"WHERE TRIGGER_SCHEMA = '$observeeDbName'"
         val triggerNames = SQL(q).map(_.string(1)).list.apply()
         for (triggerName <- triggerNames)
-          SQL(s"DROP TRIGGER observee.$triggerName").execute.apply()
+          SQL(s"DROP TRIGGER $observeeDbName.$triggerName").execute.apply()
       }
     }
   }

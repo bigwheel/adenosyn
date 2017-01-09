@@ -1,5 +1,6 @@
 package com.github.bigwheel.adenosyn
 
+import com.github.bigwheel.adenosyn.changerecorder.JdbcUrl
 import com.sksamuel.elastic4s.ElasticsearchClientUri
 import scala.io.Source
 import scala.sys.process.Process
@@ -21,6 +22,8 @@ package object sqlutil {
   def elasticsearchUrl: ElasticsearchClientUri = ElasticsearchClientUri(ipAddress, 9300)
 
   def url(dbName: String = "") = s"jdbc:mysql://$ipAddress/$dbName?useSSL=false"
+
+  def jdbcUrl(dbName: String) = new JdbcUrl(url(dbName), dbName)
 
   implicit class RichString(q: String)(implicit session: DBSession) {
     def query(): Unit = SQL(q).execute.apply()

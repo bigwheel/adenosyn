@@ -55,7 +55,7 @@ class MainSpec extends FunSpec with Matchers {
     it("監視対象データベースに監視ユーザーが存在しないと例外が出る") {
       withDatabases {
         a[Exception] should be thrownBy {
-          new ChangeRecorder(url("observee"), url("record"), "changerecorder", "cr").setUp
+          new ChangeRecorder(jdbcUrl("observee"), jdbcUrl("record"), "changerecorder", "cr").setUp
         }
       }
     }
@@ -69,7 +69,7 @@ class MainSpec extends FunSpec with Matchers {
         ).query
 
         a[Exception] should be thrownBy {
-          new ChangeRecorder(url("observee"), url("record"), "changerecorder", "cr").setUp
+          new ChangeRecorder(jdbcUrl("observee"), jdbcUrl("record"), "changerecorder", "cr").setUp
         }
       }
     }
@@ -77,7 +77,7 @@ class MainSpec extends FunSpec with Matchers {
     it("適切な権限があれば成功する") {
       withUserAndDatabases {
         noException should be thrownBy {
-          new ChangeRecorder(url("observee"), url("record"), "changerecorder", "cr").setUp
+          new ChangeRecorder(jdbcUrl("observee"), jdbcUrl("record"), "changerecorder", "cr").setUp
         }
       }
     }
@@ -100,7 +100,7 @@ class MainSpec extends FunSpec with Matchers {
       withUserAndDatabases {
         "CREATE TABLE observee.table1(id INTEGER PRIMARY KEY not null)".query
 
-        new ChangeRecorder(url("observee"), url("record"), "changerecorder", "cr").setUp
+        new ChangeRecorder(jdbcUrl("observee"), jdbcUrl("record"), "changerecorder", "cr").setUp
 
         NamedDB('record).getTable("table1").nonEmpty should be(true)
       }
@@ -110,7 +110,7 @@ class MainSpec extends FunSpec with Matchers {
 
       it("primary keyではないカラムがあっても記録データベース側のテーブルにはprimary keyカラムしかない") {
         withTableUserAndDatabases {
-          new ChangeRecorder(url("observee"), url("record"), "changerecorder", "cr").setUp
+          new ChangeRecorder(jdbcUrl("observee"), jdbcUrl("record"), "changerecorder", "cr").setUp
 
           NamedDB('record).getTable("table1").get.columns.withFilter(_.isPrimaryKey).
             map(_.name) should be(List("pr1", "pr2"))
@@ -119,7 +119,7 @@ class MainSpec extends FunSpec with Matchers {
 
       it("カラム定義が監視対象データベースと一致する") {
         withTableUserAndDatabases {
-          new ChangeRecorder(url("observee"), url("record"), "changerecorder", "cr").setUp
+          new ChangeRecorder(jdbcUrl("observee"), jdbcUrl("record"), "changerecorder", "cr").setUp
 
           NamedDB('record).getTable("table1").get.columns should matchPattern {
             case List(Column("pr1", _, "INT", _, true, true, false, _, _),
@@ -132,7 +132,7 @@ class MainSpec extends FunSpec with Matchers {
         withTableUserAndDatabases {
           "INSERT INTO observee.table1 (pr1, pr2, col1) VALUES (1, 'test', 3)".query
 
-          new ChangeRecorder(url("observee"), url("record"), "changerecorder", "cr").setUp
+          new ChangeRecorder(jdbcUrl("observee"), jdbcUrl("record"), "changerecorder", "cr").setUp
 
           NamedDB('record).readOnly { implicit session =>
             SQL("SELECT COUNT(*) FROM table1").map(_.int(1)).single.apply().get should be(0)
@@ -144,7 +144,7 @@ class MainSpec extends FunSpec with Matchers {
 
         it("監視対象テーブルへ行を追加すると記録テーブルに対応する行ができる") {
           withTableUserAndDatabases {
-            new ChangeRecorder(url("observee"), url("record"), "changerecorder", "cr").setUp
+            new ChangeRecorder(jdbcUrl("observee"), jdbcUrl("record"), "changerecorder", "cr").setUp
 
             "INSERT INTO observee.table1 (pr1, pr2, col1) VALUES (1, 'test', 3)".query
 
@@ -158,7 +158,7 @@ class MainSpec extends FunSpec with Matchers {
           withTableUserAndDatabases {
             "INSERT INTO observee.table1 (pr1, pr2, col1) VALUES (1, 'test', 3)".query
 
-            new ChangeRecorder(url("observee"), url("record"), "changerecorder", "cr").setUp
+            new ChangeRecorder(jdbcUrl("observee"), jdbcUrl("record"), "changerecorder", "cr").setUp
 
             "DELETE FROM observee.table1".query
 
@@ -172,7 +172,7 @@ class MainSpec extends FunSpec with Matchers {
           withTableUserAndDatabases {
             "INSERT INTO observee.table1 (pr1, pr2, col1) VALUES (1, 'test', 3)".query
 
-            new ChangeRecorder(url("observee"), url("record"), "changerecorder", "cr").setUp
+            new ChangeRecorder(jdbcUrl("observee"), jdbcUrl("record"), "changerecorder", "cr").setUp
 
             "UPDATE observee.table1 SET pr1=2".query
 
@@ -186,7 +186,7 @@ class MainSpec extends FunSpec with Matchers {
           withTableUserAndDatabases {
             "INSERT INTO observee.table1 (pr1, pr2, col1) VALUES (1, 'test', 3)".query
 
-            new ChangeRecorder(url("observee"), url("record"), "changerecorder", "cr").setUp
+            new ChangeRecorder(jdbcUrl("observee"), jdbcUrl("record"), "changerecorder", "cr").setUp
 
             "UPDATE observee.table1 SET col1=2".query
 
@@ -205,7 +205,7 @@ class MainSpec extends FunSpec with Matchers {
     it("setUp後にtearDownすると監視対象テーブルへ行を追加しても記録テーブルへは行が追加されない") {
       withTableUserAndDatabases {
         noException should be thrownBy {
-          val cr = new ChangeRecorder(url("observee"), url("record"), "changerecorder", "cr")
+          val cr = new ChangeRecorder(jdbcUrl("observee"), jdbcUrl("record"), "changerecorder", "cr")
           cr.setUp
           cr.tearDown
 
@@ -221,7 +221,7 @@ class MainSpec extends FunSpec with Matchers {
     it("setUp後にtearDown、さらにsetUpしても問題ない") {
       withTableUserAndDatabases {
         noException should be thrownBy {
-          val cr = new ChangeRecorder(url("observee"), url("record"), "changerecorder", "cr")
+          val cr = new ChangeRecorder(jdbcUrl("observee"), jdbcUrl("record"), "changerecorder", "cr")
           cr.setUp
           cr.tearDown
           cr.setUp

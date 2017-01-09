@@ -1,6 +1,7 @@
 package com.github.bigwheel.adenosyn.changeupdater
 
 import com.github.bigwheel.adenosyn.changerecorder.ChangeRecorder
+import com.github.bigwheel.adenosyn.changerecorder.JdbcUrl
 import com.github.bigwheel.adenosyn.dsl._
 import com.github.bigwheel.adenosyn.sqlutil
 import com.sksamuel.elastic4s.ElasticClient
@@ -75,7 +76,7 @@ class MainSpec extends FunSpec with Matchers with BeforeAndAfter {
           "kana" -> JsString("artist_kana", "kana")
         )
       )
-      val subject = new Subject(sqlutil.url("observee"), sqlutil.url("record"), "adenosyn", "yb",
+      val subject = new Subject(sqlutil.jdbcUrl("observee"), sqlutil.jdbcUrl("record"), "adenosyn", "yb",
         sqlutil.elasticsearchUrl, Seq((structure, IndexAndType("index1", "type1"))))
       subject.buildAll
       client.execute {
@@ -88,7 +89,7 @@ class MainSpec extends FunSpec with Matchers with BeforeAndAfter {
     }
   }
 
-  class Subject(observeeDbUrl: String, recordDbUrl: String, user: String, password: String,
+  class Subject(observeeDbUrl: JdbcUrl, recordDbUrl: JdbcUrl, user: String, password: String,
     elasticsearchClientUri: ElasticsearchClientUri, mappings: Seq[(JsValue, IndexAndType)]) {
 
     val cr = new ChangeRecorder(observeeDbUrl, recordDbUrl, user, password)
@@ -97,7 +98,7 @@ class MainSpec extends FunSpec with Matchers with BeforeAndAfter {
       val client = ElasticClient.transport(Settings.settingsBuilder.put("cluster_name",
         "elasticsearch").build(), sqlutil.elasticsearchUrl)
 
-      val pool = Commons2ConnectionPoolFactory(observeeDbUrl, user, password)
+      val pool = Commons2ConnectionPoolFactory(observeeDbUrl.plainUrl, user, password)
       scalikejdbc.using(DB(pool.borrow)) { observeeDb =>
         observeeDb.autoCommit { implicit session =>
           val jsons = fetchJsonResult(mappings.head._1)(session)
