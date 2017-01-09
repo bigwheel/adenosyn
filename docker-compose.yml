@@ -1,5 +1,5 @@
 elasticsearch:
-  image: 'elasticsearch:latest'
+  image: 'elasticsearch:2'
   ports:
     - '9200:9200'
     - '9300:9300'
