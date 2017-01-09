@@ -29,6 +29,8 @@ class ChangeRecorder private(observeeDbName: String, recordDbName: String,
             ).execute.apply()
 
             observeeDb.autoCommit { implicit session =>
+              // OLD.とNEW.はtrigger文固有のキーワード
+              // https://dev.mysql.com/doc/refman/5.6/ja/trigger-syntax.html
               val queries = Seq(
                 s"""CREATE TRIGGER changerecorder_observee_${tableName}_insert AFTER INSERT
                     |ON $observeeDbName.$tableName FOR EACH ROW

@@ -51,7 +51,6 @@ class ChangeRecorderSpec extends FunSpec with Matchers {
   }
 
   describe(".setUp") {
-    // TODO: 例外を厳密に指定する
     it("監視対象データベースに監視用ユーザーが存在しないと例外が出る") {
       withDatabases {
         a[Exception] should be thrownBy {
@@ -60,7 +59,6 @@ class ChangeRecorderSpec extends FunSpec with Matchers {
       }
     }
 
-    // TODO: 例外を厳密に指定する
     it("記録データベースに監視用ユーザーが存在しないと例外が出る") {
       withDatabases {
         Seq(
@@ -82,7 +80,6 @@ class ChangeRecorderSpec extends FunSpec with Matchers {
       }
     }
 
-    // TODO: 例外を厳密に指定する
     it("権限が不足していると例外が出る") {
       withDatabases {
         pending
@@ -102,7 +99,7 @@ class ChangeRecorderSpec extends FunSpec with Matchers {
 
         new ChangeRecorder(jdbcUrl("observee"), jdbcUrl("record"), "changerecorder", "cr").setUp
 
-        NamedDB('record).getTable("table1").nonEmpty should be(true)
+        NamedDB('record).getTable("table1") shouldNot be(empty)
       }
     }
 
