@@ -52,7 +52,7 @@ class MainSpec extends FunSpec with Matchers {
 
   describe(".setUp") {
     // TODO: 例外を厳密に指定する
-    it("監視対象データベースに監視ユーザーが存在しないと例外が出る") {
+    it("監視対象データベースに監視用ユーザーが存在しないと例外が出る") {
       withDatabases {
         a[Exception] should be thrownBy {
           new ChangeRecorder(jdbcUrl("observee"), jdbcUrl("record"), "changerecorder", "cr").setUp
@@ -61,7 +61,7 @@ class MainSpec extends FunSpec with Matchers {
     }
 
     // TODO: 例外を厳密に指定する
-    it("記録データベースに監視ユーザーが存在しないと例外が出る") {
+    it("記録データベースに監視用ユーザーが存在しないと例外が出る") {
       withDatabases {
         Seq(
           "CREATE USER 'changerecorder'@'%' IDENTIFIED BY 'changerecorder'",
