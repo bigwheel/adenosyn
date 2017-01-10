@@ -1,3 +1,0 @@
-[submodule ".idea"]
-	path = .idea
-	url = https://github.com/bigwheel/intellij-scala-project-settings.git
