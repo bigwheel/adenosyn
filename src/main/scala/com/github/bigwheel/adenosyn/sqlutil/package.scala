@@ -1,6 +1,5 @@
 package com.github.bigwheel.adenosyn
 
-import com.github.bigwheel.adenosyn.changerecorder.JdbcUrl
 import com.sksamuel.elastic4s.ElasticsearchClientUri
 import scala.io.Source
 import scala.sys.process.Process

@@ -1,4 +1,4 @@
-name := "adenosyn"
+name := "changerecorder"
 version := "1.0.0"
 scalaVersion := "2.11.8"
 scalacOptions ++= Seq("-unchecked", "-deprecation")
@@ -9,11 +9,6 @@ libraryDependencies ++= Seq(
   "org.scalatest"          %% "scalatest"            % "2.2.6" % "test",
   "org.scalikejdbc"        %% "scalikejdbc"          % "2.3.+",
   "mysql"                  %  "mysql-connector-java" % "5.1.38",
-  "ch.qos.logback"         %  "logback-classic"      % "1.1.+",
-  "org.scalaz"             %% "scalaz-core"          % "7.1.1",
-  "io.argonaut"            %% "argonaut"             % "6.1",
-  "com.sksamuel.elastic4s" %% "elastic4s-core"       % "2.3.0"
+  "ch.qos.logback"         %  "logback-classic"      % "1.1.+"
 )
 // @formatter:on
-lazy val changerecorder = project
-lazy val root = (project in file("./")).dependsOn(changerecorder)
