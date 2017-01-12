@@ -1,16 +1,17 @@
 package com.github.bigwheel.adenosyn
 
-import com.github.bigwheel.adenosyn.changerecorder.JdbcUrl
 import scala.io.Source
 import scalikejdbc._
 
 package object sqlutil {
 
-  private val ipAddress = "127.0.0.1"
+  object JdbcUrl {
+    def apply(dbName: String) = new JdbcUrl(sqlutil.url(dbName), dbName)
+  }
 
-  def url(dbName: String = "") = s"jdbc:mysql://$ipAddress/$dbName?useSSL=false"
+  class JdbcUrl(val plainUrl: String, val dbName: String)
 
-  def jdbcUrl(dbName: String) = new JdbcUrl(url(dbName), dbName)
+  def url(dbName: String = "") = s"jdbc:mysql://127.0.0.1/$dbName?useSSL=false"
 
   implicit class RichString(q: String)(implicit session: DBSession) {
     def query(): Unit = SQL(q).execute.apply()

@@ -60,7 +60,7 @@ class ChangeRecorderSpec extends FunSpec with Matchers with BeforeAndAfterAll {
     it("監視対象データベースに監視用ユーザーが存在しないと例外が出る") {
       withDatabases {
         a[Exception] should be thrownBy {
-          new ChangeRecorder(jdbcUrl("observee"), jdbcUrl("record"), "changerecorder", "cr").setUp
+          new ChangeRecorder(JdbcUrl("observee"), JdbcUrl("record"), "changerecorder", "cr").setUp
         }
       }
     }
@@ -73,7 +73,7 @@ class ChangeRecorderSpec extends FunSpec with Matchers with BeforeAndAfterAll {
         ).query
 
         a[Exception] should be thrownBy {
-          new ChangeRecorder(jdbcUrl("observee"), jdbcUrl("record"), "changerecorder", "cr").setUp
+          new ChangeRecorder(JdbcUrl("observee"), JdbcUrl("record"), "changerecorder", "cr").setUp
         }
       }
     }
@@ -81,7 +81,7 @@ class ChangeRecorderSpec extends FunSpec with Matchers with BeforeAndAfterAll {
     it("適切な権限があれば成功する") {
       withUserAndDatabases {
         noException should be thrownBy {
-          new ChangeRecorder(jdbcUrl("observee"), jdbcUrl("record"), "changerecorder", "cr").setUp
+          new ChangeRecorder(JdbcUrl("observee"), JdbcUrl("record"), "changerecorder", "cr").setUp
         }
       }
     }
@@ -103,7 +103,7 @@ class ChangeRecorderSpec extends FunSpec with Matchers with BeforeAndAfterAll {
       withUserAndDatabases {
         "CREATE TABLE observee.table1(id INTEGER PRIMARY KEY not null)".query
 
-        new ChangeRecorder(jdbcUrl("observee"), jdbcUrl("record"), "changerecorder", "cr").setUp
+        new ChangeRecorder(JdbcUrl("observee"), JdbcUrl("record"), "changerecorder", "cr").setUp
 
         NamedDB('record).getTable("table1") shouldNot be(empty)
       }
@@ -113,7 +113,7 @@ class ChangeRecorderSpec extends FunSpec with Matchers with BeforeAndAfterAll {
 
       it("primary keyではないカラムがあっても記録データベース側のテーブルにはprimary keyカラムしかない") {
         withTableUserAndDatabases {
-          new ChangeRecorder(jdbcUrl("observee"), jdbcUrl("record"), "changerecorder", "cr").setUp
+          new ChangeRecorder(JdbcUrl("observee"), JdbcUrl("record"), "changerecorder", "cr").setUp
 
           NamedDB('record).getTable("table1").get.columns.withFilter(_.isPrimaryKey).
             map(_.name) should be(List("pr1", "pr2"))
@@ -122,7 +122,7 @@ class ChangeRecorderSpec extends FunSpec with Matchers with BeforeAndAfterAll {
 
       it("カラム定義が監視対象データベースと一致する") {
         withTableUserAndDatabases {
-          new ChangeRecorder(jdbcUrl("observee"), jdbcUrl("record"), "changerecorder", "cr").setUp
+          new ChangeRecorder(JdbcUrl("observee"), JdbcUrl("record"), "changerecorder", "cr").setUp
 
           NamedDB('record).getTable("table1").get.columns should matchPattern {
             case List(Column("pr1", _, "INT", _, true, true, false, _, _),
@@ -135,7 +135,7 @@ class ChangeRecorderSpec extends FunSpec with Matchers with BeforeAndAfterAll {
         withTableUserAndDatabases {
           "INSERT INTO observee.table1 (pr1, pr2, col1) VALUES (1, 'test', 3)".query
 
-          new ChangeRecorder(jdbcUrl("observee"), jdbcUrl("record"), "changerecorder", "cr").setUp
+          new ChangeRecorder(JdbcUrl("observee"), JdbcUrl("record"), "changerecorder", "cr").setUp
 
           NamedDB('record).readOnly { implicit session =>
             SQL("SELECT COUNT(*) FROM table1").map(_.int(1)).single.apply().get should be(0)
@@ -147,7 +147,7 @@ class ChangeRecorderSpec extends FunSpec with Matchers with BeforeAndAfterAll {
 
         it("監視対象テーブルへ行を追加すると記録テーブルに対応する行ができる") {
           withTableUserAndDatabases {
-            new ChangeRecorder(jdbcUrl("observee"), jdbcUrl("record"), "changerecorder", "cr").setUp
+            new ChangeRecorder(JdbcUrl("observee"), JdbcUrl("record"), "changerecorder", "cr").setUp
 
             "INSERT INTO observee.table1 (pr1, pr2, col1) VALUES (1, 'test', 3)".query
 
@@ -161,7 +161,7 @@ class ChangeRecorderSpec extends FunSpec with Matchers with BeforeAndAfterAll {
           withTableUserAndDatabases {
             "INSERT INTO observee.table1 (pr1, pr2, col1) VALUES (1, 'test', 3)".query
 
-            new ChangeRecorder(jdbcUrl("observee"), jdbcUrl("record"), "changerecorder", "cr").setUp
+            new ChangeRecorder(JdbcUrl("observee"), JdbcUrl("record"), "changerecorder", "cr").setUp
 
             "DELETE FROM observee.table1".query
 
@@ -175,7 +175,7 @@ class ChangeRecorderSpec extends FunSpec with Matchers with BeforeAndAfterAll {
           withTableUserAndDatabases {
             "INSERT INTO observee.table1 (pr1, pr2, col1) VALUES (1, 'test', 3)".query
 
-            new ChangeRecorder(jdbcUrl("observee"), jdbcUrl("record"), "changerecorder", "cr").setUp
+            new ChangeRecorder(JdbcUrl("observee"), JdbcUrl("record"), "changerecorder", "cr").setUp
 
             "UPDATE observee.table1 SET pr1=2".query
 
@@ -189,7 +189,7 @@ class ChangeRecorderSpec extends FunSpec with Matchers with BeforeAndAfterAll {
           withTableUserAndDatabases {
             "INSERT INTO observee.table1 (pr1, pr2, col1) VALUES (1, 'test', 3)".query
 
-            new ChangeRecorder(jdbcUrl("observee"), jdbcUrl("record"), "changerecorder", "cr").setUp
+            new ChangeRecorder(JdbcUrl("observee"), JdbcUrl("record"), "changerecorder", "cr").setUp
 
             "UPDATE observee.table1 SET col1=2".query
 
@@ -208,7 +208,7 @@ class ChangeRecorderSpec extends FunSpec with Matchers with BeforeAndAfterAll {
     it("setUp後にtearDownすると監視対象テーブルへ行を追加しても記録テーブルへは行が追加されない") {
       withTableUserAndDatabases {
         noException should be thrownBy {
-          val cr = new ChangeRecorder(jdbcUrl("observee"), jdbcUrl("record"), "changerecorder", "cr")
+          val cr = new ChangeRecorder(JdbcUrl("observee"), JdbcUrl("record"), "changerecorder", "cr")
           cr.setUp
           cr.tearDown
 
@@ -224,7 +224,7 @@ class ChangeRecorderSpec extends FunSpec with Matchers with BeforeAndAfterAll {
     it("setUp後にtearDown、さらにsetUpしても問題ない") {
       withTableUserAndDatabases {
         noException should be thrownBy {
-          val cr = new ChangeRecorder(jdbcUrl("observee"), jdbcUrl("record"), "changerecorder", "cr")
+          val cr = new ChangeRecorder(JdbcUrl("observee"), JdbcUrl("record"), "changerecorder", "cr")
           cr.setUp
           cr.tearDown
           cr.setUp
