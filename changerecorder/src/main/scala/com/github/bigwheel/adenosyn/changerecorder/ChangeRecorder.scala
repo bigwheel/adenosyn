@@ -1,6 +1,5 @@
 package com.github.bigwheel.adenosyn.changerecorder
 
-import com.github.bigwheel.adenosyn.sqlutil.JdbcUrl
 import scalikejdbc._
 
 class ChangeRecorder private(observeeDbName: String, recordDbName: String,
