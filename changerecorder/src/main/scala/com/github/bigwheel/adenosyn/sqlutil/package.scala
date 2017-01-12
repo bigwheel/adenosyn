@@ -1,24 +1,12 @@
 package com.github.bigwheel.adenosyn
 
-import com.sksamuel.elastic4s.ElasticsearchClientUri
+import com.github.bigwheel.adenosyn.changerecorder.JdbcUrl
 import scala.io.Source
-import scala.sys.process.Process
-import scalikejdbc.Commons2ConnectionPoolFactory
-import scalikejdbc.DB
-import scalikejdbc.DBSession
-import scalikejdbc.GlobalSettings
-import scalikejdbc.LoggingSQLAndTimeSettings
-import scalikejdbc.SQL
-import scalikejdbc.using
+import scalikejdbc._
 
 package object sqlutil {
 
   private val ipAddress = "127.0.0.1"
-
-  /**
-    * どう考えてもここにあるべきじゃない・・
-    */
-  def elasticsearchUrl: ElasticsearchClientUri = ElasticsearchClientUri(ipAddress, 9300)
 
   def url(dbName: String = "") = s"jdbc:mysql://$ipAddress/$dbName?useSSL=false"
 

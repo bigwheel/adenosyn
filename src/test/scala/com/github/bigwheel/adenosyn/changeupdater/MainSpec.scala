@@ -1,5 +1,6 @@
 package com.github.bigwheel.adenosyn.changeupdater
 
+import com.github.bigwheel.adenosyn.changerecorder.ChangeRecorder
 import com.github.bigwheel.adenosyn.changerecorder.JdbcUrl
 import com.github.bigwheel.adenosyn.dsl._
 import com.github.bigwheel.adenosyn.sqlutil
@@ -20,8 +21,9 @@ import scalikejdbc.NamedDB
 
 class MainSpec extends FunSpec with Matchers with BeforeAndAfter {
 
+  val elasticsearchUrl = ElasticsearchClientUri("127.0.0.1", 9300)
   private[this] val client = ElasticClient.transport(
-    Settings.settingsBuilder.put("cluster_name", "elasticsearch").build(), sqlutil.elasticsearchUrl
+    Settings.settingsBuilder.put("cluster_name", "elasticsearch").build(), elasticsearchUrl
   )
 
   before {
@@ -76,7 +78,7 @@ class MainSpec extends FunSpec with Matchers with BeforeAndAfter {
         )
       )
       val subject = new Subject(sqlutil.jdbcUrl("observee"), sqlutil.jdbcUrl("record"), "adenosyn", "yb",
-        sqlutil.elasticsearchUrl, Seq((structure, IndexAndType("index1", "type1"))))
+        elasticsearchUrl, Seq((structure, IndexAndType("index1", "type1"))))
       subject.buildAll
       client.execute {
         flush index "index1"
@@ -95,7 +97,7 @@ class MainSpec extends FunSpec with Matchers with BeforeAndAfter {
 
     def buildAll() = {
       val client = ElasticClient.transport(Settings.settingsBuilder.put("cluster_name",
-        "elasticsearch").build(), sqlutil.elasticsearchUrl)
+        "elasticsearch").build(), elasticsearchUrl)
 
       val pool = Commons2ConnectionPoolFactory(observeeDbUrl.plainUrl, user, password)
       scalikejdbc.using(DB(pool.borrow)) { observeeDb =>

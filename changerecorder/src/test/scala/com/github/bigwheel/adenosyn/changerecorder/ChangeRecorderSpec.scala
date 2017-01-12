@@ -1,20 +1,27 @@
 package com.github.bigwheel.adenosyn.changerecorder
 
 import com.github.bigwheel.adenosyn.sqlutil
+import com.github.bigwheel.adenosyn.sqlutil._
+import org.scalatest.BeforeAndAfterAll
 import org.scalatest.FunSpec
 import org.scalatest.Matchers
+import scala.sys.process.Process
 import scalikejdbc._
 import scalikejdbc.metadata.Column
 
-class ChangeRecorderSpec extends FunSpec with Matchers {
+class ChangeRecorderSpec extends FunSpec with Matchers with BeforeAndAfterAll {
 
-  sqlutil.suppressLog()
+  override def beforeAll() = {
+    Process("docker-compose up -d").!!
 
-  {
-    Class.forName("com.mysql.jdbc.Driver")
-    ConnectionPool.singleton(sqlutil.url(), "root", "root")
-    ConnectionPool.add('observee, sqlutil.url("observee"), "root", "root")
-    ConnectionPool.add('record, sqlutil.url("record"), "root", "root")
+    sqlutil.suppressLog()
+
+    {
+      Class.forName("com.mysql.jdbc.Driver")
+      ConnectionPool.singleton(sqlutil.url(), "root", "root")
+      ConnectionPool.add('observee, sqlutil.url("observee"), "root", "root")
+      ConnectionPool.add('record, sqlutil.url("record"), "root", "root")
+    }
   }
 
   private[this] implicit val session = AutoSession
