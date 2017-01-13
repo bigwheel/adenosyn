@@ -11,15 +11,19 @@ import com.sksamuel.elastic4s.IndexAndType
 import com.sksamuel.elastic4s.source.JsonDocumentSource
 import org.elasticsearch.common.settings.Settings
 import org.scalatest.BeforeAndAfter
+import org.scalatest.BeforeAndAfterAll
 import org.scalatest.FunSpec
 import org.scalatest.Matchers
+import scala.sys.process.Process
 import scalaz.Scalaz._
 import scalikejdbc.Commons2ConnectionPoolFactory
 import scalikejdbc.ConnectionPool
 import scalikejdbc.DB
 import scalikejdbc.NamedDB
 
-class MainSpec extends FunSpec with Matchers with BeforeAndAfter {
+class MainSpec extends FunSpec with Matchers with BeforeAndAfter with BeforeAndAfterAll {
+
+  override def beforeAll() = Process("docker-compose up -d").!!
 
   val elasticsearchUrl = ElasticsearchClientUri("127.0.0.1", 9300)
   private[this] val client = ElasticClient.transport(
@@ -77,7 +81,7 @@ class MainSpec extends FunSpec with Matchers with BeforeAndAfter {
           "kana" -> JsString("artist_kana", "kana")
         )
       )
-      val subject = new Subject(sqlutil.jdbcUrl("observee"), sqlutil.jdbcUrl("record"), "adenosyn", "yb",
+      val subject = new Subject(sqlutil.jdbcUrlForTest("observee"), sqlutil.jdbcUrlForTest("record"), "adenosyn", "yb",
         elasticsearchUrl, Seq((structure, IndexAndType("index1", "type1"))))
       subject.buildAll
       client.execute {
