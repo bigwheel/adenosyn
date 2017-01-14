@@ -1,14 +1,16 @@
-package com.github.bigwheel.adenosyn
+package com.github.bigwheel.adenosyn.dsl
 
 import argonaut.Argonaut._
 import argonaut._
-import com.github.bigwheel.adenosyn.dsl._
+import com.github.bigwheel.adenosyn.sqlutil
 import org.scalatest.FunSpec
 import org.scalatest.Matchers
-import scalikejdbc._
 import scalaz.Scalaz._
+import scalikejdbc._
 
-class WiringSpec extends FunSpec with Matchers {
+class DslSpec extends FunSpec with Matchers {
+
+  sqlutil.suppressLog()
 
   Class.forName("com.mysql.jdbc.Driver")
 
