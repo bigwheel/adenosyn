@@ -1,6 +1,5 @@
 package com.github.bigwheel.adenosyn
 
-import com.github.bigwheel.adenosyn.changerecorder.JdbcUrl
 import scala.io.Source
 import scalikejdbc._
 
