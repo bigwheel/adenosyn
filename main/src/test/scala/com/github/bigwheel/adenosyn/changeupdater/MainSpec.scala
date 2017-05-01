@@ -14,7 +14,9 @@ import org.scalatest.BeforeAndAfter
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.FunSpec
 import org.scalatest.Matchers
+import org.slf4j.LoggerFactory
 import scala.sys.process.Process
+import scala.sys.process.ProcessLogger
 import scalaz.Scalaz._
 import scalikejdbc.Commons2ConnectionPoolFactory
 import scalikejdbc.ConnectionPool
@@ -24,7 +26,8 @@ import scalikejdbc.NamedDB
 class MainSpec extends FunSpec with Matchers with BeforeAndAfter with BeforeAndAfterAll {
 
   override def beforeAll() = {
-    Process("docker-compose up -d").!!
+    val l = LoggerFactory.getLogger(getClass)
+    Process("docker-compose up -d").!(ProcessLogger(l.debug, l.warn))
 
     _root_.com.github.bigwheel.adenosyn.sqlutil.suppressLog()
     Class.forName("com.mysql.jdbc.Driver")
