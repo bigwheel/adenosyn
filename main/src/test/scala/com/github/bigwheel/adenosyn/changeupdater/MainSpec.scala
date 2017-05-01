@@ -23,9 +23,17 @@ import scalikejdbc.NamedDB
 
 class MainSpec extends FunSpec with Matchers with BeforeAndAfter with BeforeAndAfterAll {
 
-  override def beforeAll() = Process("docker-compose up -d").!!
+  override def beforeAll() = {
+    Process("docker-compose up -d").!!
 
-  val elasticsearchUrl = ElasticsearchClientUri("127.0.0.1", 9300)
+    _root_.com.github.bigwheel.adenosyn.sqlutil.suppressLog()
+    Class.forName("com.mysql.jdbc.Driver")
+    ConnectionPool.singleton(sqlutil.url(), "root", "root")
+    ConnectionPool.add('observee, sqlutil.url("observee"), "root", "root")
+    ConnectionPool.add('record, sqlutil.url("record"), "root", "root")
+  }
+
+  private[this] val elasticsearchUrl = ElasticsearchClientUri("127.0.0.1", 9300)
   private[this] val client = ElasticClient.transport(
     Settings.settingsBuilder.put("cluster_name", "elasticsearch").build(), elasticsearchUrl
   )
@@ -39,13 +47,6 @@ class MainSpec extends FunSpec with Matchers with BeforeAndAfter with BeforeAndA
   after {
     client.close
   }
-
-  sqlutil.suppressLog()
-
-  Class.forName("com.mysql.jdbc.Driver")
-  ConnectionPool.singleton(sqlutil.url(), "root", "root")
-  ConnectionPool.add('observee, sqlutil.url("observee"), "root", "root")
-  ConnectionPool.add('record, sqlutil.url("record"), "root", "root")
 
   private[this] def withDatabases(test: => Any) {
     DB.autoCommit { implicit session =>
@@ -77,6 +78,7 @@ class MainSpec extends FunSpec with Matchers with BeforeAndAfter with BeforeAndA
           )
         ).some,
         Map[String, JsValue](
+          "_id" -> JsString("artist", "id"),
           "name" -> JsString("artist", "name"),
           "kana" -> JsString("artist_kana", "kana")
         )
