@@ -1,3 +1,4 @@
+<!-- original: https://github.com/skinny-framework/skinny-framework/blob/69df6ec/common/src/test/resources/logback.xml -->
 <configuration>
     <appender name="default" class="ch.qos.logback.core.FileAppender">
         <file>logs/console.log</file>
