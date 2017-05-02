@@ -13,29 +13,31 @@ import scalikejdbc.metadata.Column
 
 class ChangeRecorderSpec extends FreeSpec with Matchers with BeforeAndAfterAll {
 
+  private[this] val postfix = "398"
+  private[this] val observeeDbName = "observee" + postfix
+  private[this] val recordDbName = "record" + postfix
+  private[this] val userName = "changerecorder" + postfix
+  private[this] val password = "cr" + postfix
+
   override protected def beforeAll() = {
     val l = LoggerFactory.getLogger(getClass)
     Process("docker-compose up -d").!(ProcessLogger(l.debug, l.warn))
 
-    sqlutil.suppressLog()
-
-    {
-      Class.forName("com.mysql.jdbc.Driver")
-      ConnectionPool.singleton(sqlutil.url(), "root", "root")
-      ConnectionPool.add('observee, sqlutil.url("observee"), "root", "root")
-      ConnectionPool.add('record, sqlutil.url("record"), "root", "root")
-    }
+    Class.forName("com.mysql.jdbc.Driver")
+    ConnectionPool.singleton(sqlutil.url(), "root", "root")
+    ConnectionPool.add('observee, sqlutil.url(observeeDbName), "root", "root")
+    ConnectionPool.add('record, sqlutil.url(recordDbName), "root", "root")
   }
 
   private[this] implicit val session = AutoSession
 
   private[this] def withDatabases(test: => Any) {
     sqlutil.executeStatements(
-      """DROP DATABASE IF EXISTS observee;
-        |CREATE DATABASE observee;
-        |DROP DATABASE IF EXISTS record;
-        |CREATE DATABASE record;
-        |DROP USER IF EXISTS 'changerecorder'@'%';""".stripMargin
+      s"""DROP DATABASE IF EXISTS $observeeDbName;
+        |CREATE DATABASE $observeeDbName;
+        |DROP DATABASE IF EXISTS $recordDbName;
+        |CREATE DATABASE $recordDbName;
+        |DROP USER IF EXISTS '$userName'@'%';""".stripMargin
     )
     test
   }
@@ -43,9 +45,9 @@ class ChangeRecorderSpec extends FreeSpec with Matchers with BeforeAndAfterAll {
   private[this] def withUserAndDatabases(test: => Any) {
     withDatabases {
       sqlutil.executeStatements(
-        """CREATE USER 'changerecorder'@'%' IDENTIFIED BY 'cr';
-          |GRANT ALL ON observee.* TO 'changerecorder'@'%';
-          |GRANT ALL ON record.* TO 'changerecorder'@'%';""".stripMargin
+        s"""CREATE USER '$userName'@'%' IDENTIFIED BY '$password';
+          |GRANT ALL ON $observeeDbName.* TO '$userName'@'%';
+          |GRANT ALL ON $recordDbName.* TO '$userName'@'%';""".stripMargin
       )
       test
     }
@@ -53,11 +55,14 @@ class ChangeRecorderSpec extends FreeSpec with Matchers with BeforeAndAfterAll {
 
   private[this] def withTableUserAndDatabases(test: => Any) {
     withUserAndDatabases {
-      ("CREATE TABLE observee.table1(pr1 INTEGER not null," +
+      (s"CREATE TABLE $observeeDbName.table1(pr1 INTEGER not null," +
         "pr2 VARCHAR(30) not null, col1 INTEGER, PRIMARY KEY(pr1, pr2))").query
       test
     }
   }
+
+  private[this] def subject = new ChangeRecorder(jdbcUrlForTest(observeeDbName),
+    jdbcUrlForTest(recordDbName), userName, password)
 
   ".setUp" - {
     "database permission aspect:" - {
@@ -65,8 +70,7 @@ class ChangeRecorderSpec extends FreeSpec with Matchers with BeforeAndAfterAll {
         "produce Exception" in {
           withDatabases {
             a[Exception] should be thrownBy {
-              new ChangeRecorder(jdbcUrlForTest("observee"), jdbcUrlForTest("record"),
-                "changerecorder", "cr").setUp
+              subject.setUp
             }
           }
         }
@@ -76,12 +80,11 @@ class ChangeRecorderSpec extends FreeSpec with Matchers with BeforeAndAfterAll {
         "there is no user in record database" - {
           "produce Exception" in {
             withDatabases {
-              Seq("CREATE USER 'changerecorder'@'%' IDENTIFIED BY 'changerecorder'",
-                "GRANT ALL ON observee.* TO 'changerecorder'@'%'").query
+              Seq(s"CREATE USER '$userName'@'%' IDENTIFIED BY 'changerecorder'",
+                s"GRANT ALL ON $observeeDbName.* TO '$userName'@'%'").query
 
               a[Exception] should be thrownBy {
-                new ChangeRecorder(jdbcUrlForTest("observee"), jdbcUrlForTest("record"),
-                  "changerecorder", "cr").setUp
+                subject.setUp
               }
             }
           }
@@ -91,8 +94,7 @@ class ChangeRecorderSpec extends FreeSpec with Matchers with BeforeAndAfterAll {
           "succeed with appropriate permission" in {
             withUserAndDatabases {
               noException should be thrownBy {
-                new ChangeRecorder(jdbcUrlForTest("observee"), jdbcUrlForTest("record"),
-                  "changerecorder", "cr").setUp
+                subject.setUp
               }
             }
           }
@@ -117,10 +119,9 @@ class ChangeRecorderSpec extends FreeSpec with Matchers with BeforeAndAfterAll {
 
       "create a record table in record database" in {
         withUserAndDatabases {
-          "CREATE TABLE observee.table1(id INTEGER PRIMARY KEY not null)".query
+          s"CREATE TABLE $observeeDbName.table1(id INTEGER PRIMARY KEY not null)".query
 
-          new ChangeRecorder(jdbcUrlForTest("observee"), jdbcUrlForTest("record"),
-            "changerecorder", "cr").setUp
+          subject.setUp
 
           NamedDB('record).getTable("table1") shouldNot be(empty)
         }
@@ -128,8 +129,7 @@ class ChangeRecorderSpec extends FreeSpec with Matchers with BeforeAndAfterAll {
 
       "the record table has only primary keys of observee table" in {
         withTableUserAndDatabases {
-          new ChangeRecorder(jdbcUrlForTest("observee"), jdbcUrlForTest("record"),
-            "changerecorder", "cr").setUp
+          subject.setUp
 
           NamedDB('record).getTable("table1").get.columns.withFilter(_.isPrimaryKey).
             map(_.name) should be(List("pr1", "pr2"))
@@ -138,8 +138,7 @@ class ChangeRecorderSpec extends FreeSpec with Matchers with BeforeAndAfterAll {
 
       "column definitions of primary keys in record table match it in observee table" in {
         withTableUserAndDatabases {
-          new ChangeRecorder(jdbcUrlForTest("observee"), jdbcUrlForTest("record"),
-            "changerecorder", "cr").setUp
+          subject.setUp
 
           NamedDB('record).getTable("table1").get.columns should matchPattern {
             case List(Column("pr1", _, "INT", _, true, true, false, _, _),
@@ -152,9 +151,9 @@ class ChangeRecorderSpec extends FreeSpec with Matchers with BeforeAndAfterAll {
     "record manipulation aspect:" - {
       "no rows created in record table when a row is inserted to observee table before .setUp is executed" in {
         withTableUserAndDatabases {
-          "INSERT INTO observee.table1 (pr1, pr2, col1) VALUES (1, 'test', 3)".query
+          s"INSERT INTO $observeeDbName.table1 (pr1, pr2, col1) VALUES (1, 'test', 3)".query
 
-          new ChangeRecorder(jdbcUrlForTest("observee"), jdbcUrlForTest("record"), "changerecorder", "cr").setUp
+          subject.setUp
 
           NamedDB('record).readOnly { implicit session =>
             SQL("SELECT COUNT(*) FROM table1").map(_.int(1)).single.apply().get should be(0)
@@ -164,9 +163,9 @@ class ChangeRecorderSpec extends FreeSpec with Matchers with BeforeAndAfterAll {
 
       "the row created in record table when a row is inserted to observee table after .setUp is executed" in {
         withTableUserAndDatabases {
-          new ChangeRecorder(jdbcUrlForTest("observee"), jdbcUrlForTest("record"), "changerecorder", "cr").setUp
+          subject.setUp
 
-          "INSERT INTO observee.table1 (pr1, pr2, col1) VALUES (1, 'test', 3)".query
+          s"INSERT INTO $observeeDbName.table1 (pr1, pr2, col1) VALUES (1, 'test', 3)".query
 
           NamedDB('record).readOnly { implicit session =>
             SQL("SELECT COUNT(*) FROM table1").map(_.int(1)).single.apply().get should be(1)
@@ -176,11 +175,11 @@ class ChangeRecorderSpec extends FreeSpec with Matchers with BeforeAndAfterAll {
 
       "the row created in record table when a row is deleted to observee table after .setUp is executed" in {
         withTableUserAndDatabases {
-          "INSERT INTO observee.table1 (pr1, pr2, col1) VALUES (1, 'test', 3)".query
+          s"INSERT INTO $observeeDbName.table1 (pr1, pr2, col1) VALUES (1, 'test', 3)".query
 
-          new ChangeRecorder(jdbcUrlForTest("observee"), jdbcUrlForTest("record"), "changerecorder", "cr").setUp
+          subject.setUp
 
-          "DELETE FROM observee.table1".query
+          s"DELETE FROM $observeeDbName.table1".query
 
           NamedDB('record).readOnly { implicit session =>
             SQL("SELECT COUNT(*) FROM table1").map(_.int(1)).single.apply().get should be(1)
@@ -190,11 +189,11 @@ class ChangeRecorderSpec extends FreeSpec with Matchers with BeforeAndAfterAll {
 
       "the row created in record table when a primary key of a row is updated to observee table after .setUp is executed" in {
         withTableUserAndDatabases {
-          "INSERT INTO observee.table1 (pr1, pr2, col1) VALUES (1, 'test', 3)".query
+          s"INSERT INTO $observeeDbName.table1 (pr1, pr2, col1) VALUES (1, 'test', 3)".query
 
-          new ChangeRecorder(jdbcUrlForTest("observee"), jdbcUrlForTest("record"), "changerecorder", "cr").setUp
+          subject.setUp
 
-          "UPDATE observee.table1 SET pr1=2".query
+          s"UPDATE $observeeDbName.table1 SET pr1=2".query
 
           NamedDB('record).readOnly { implicit session =>
             SQL("SELECT COUNT(*) FROM table1").map(_.int(1)).single.apply().get should be(2)
@@ -204,11 +203,11 @@ class ChangeRecorderSpec extends FreeSpec with Matchers with BeforeAndAfterAll {
 
       "the row created in record table when a non primary key of a row is updated to observee table after .setUp is executed" in {
         withTableUserAndDatabases {
-          "INSERT INTO observee.table1 (pr1, pr2, col1) VALUES (1, 'test', 3)".query
+          s"INSERT INTO $observeeDbName.table1 (pr1, pr2, col1) VALUES (1, 'test', 3)".query
 
-          new ChangeRecorder(jdbcUrlForTest("observee"), jdbcUrlForTest("record"), "changerecorder", "cr").setUp
+          subject.setUp
 
-          "UPDATE observee.table1 SET col1=2".query
+          s"UPDATE $observeeDbName.table1 SET col1=2".query
 
           NamedDB('record).readOnly { implicit session =>
             SQL("SELECT COUNT(*) FROM table1").map(_.int(1)).single.apply().get should be(1)
@@ -225,12 +224,11 @@ class ChangeRecorderSpec extends FreeSpec with Matchers with BeforeAndAfterAll {
       "no rows created in record table when a row is inserted to observee table after .tearDown is executed" in {
         withTableUserAndDatabases {
           noException should be thrownBy {
-            val cr = new ChangeRecorder(jdbcUrlForTest("observee"), jdbcUrlForTest("record"),
-              "changerecorder", "cr")
-            cr.setUp
-            cr.tearDown
+            val subj = subject
+            subj.setUp
+            subj.tearDown
 
-            "INSERT INTO observee.table1 (pr1, pr2, col1) VALUES (1, 'test', 3)".query
+            s"INSERT INTO $observeeDbName.table1 (pr1, pr2, col1) VALUES (1, 'test', 3)".query
 
             NamedDB('record).readOnly { implicit session =>
               SQL("SELECT COUNT(*) FROM table1").map(_.int(1)).single.apply().get should be(0)
@@ -242,11 +240,10 @@ class ChangeRecorderSpec extends FreeSpec with Matchers with BeforeAndAfterAll {
       "no Exception in .setUp after .tearDown" in {
         withTableUserAndDatabases {
           noException should be thrownBy {
-            val cr = new ChangeRecorder(jdbcUrlForTest("observee"), jdbcUrlForTest("record"),
-              "changerecorder", "cr")
-            cr.setUp
-            cr.tearDown
-            cr.setUp
+            val subj = subject
+            subj.setUp
+            subj.tearDown
+            subj.setUp
           }
         }
       }
