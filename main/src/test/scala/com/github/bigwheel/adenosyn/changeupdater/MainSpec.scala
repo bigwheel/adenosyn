@@ -111,9 +111,11 @@ class MainSpec extends FunSpec with Matchers with BeforeAndAfter with BeforeAndA
       val pool = Commons2ConnectionPoolFactory(observeeDbUrl.plainUrl, user, password)
       scalikejdbc.using(DB(pool.borrow)) { observeeDb =>
         observeeDb.autoCommit { implicit session =>
-          val jsons = fetchJsonResult(mappings.head._1)(session)
+          val json = fetchJsonResult(mappings.head._1)(session).head
+          val noIdJson = json.hcursor.downField("_id").delete.undo.get
+          val idString = json.field("_id").get.string.get
           client.execute {
-            index into mappings.head._2 doc JsonDocumentSource(jsons.head.nospaces)
+            index into mappings.head._2 doc JsonDocumentSource(noIdJson.nospaces) id idString
           }.await
         }
       }
