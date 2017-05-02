@@ -3,7 +3,7 @@ package com.github.bigwheel.adenosyn.changerecorder
 import com.github.bigwheel.adenosyn.sqlutil
 import com.github.bigwheel.adenosyn.sqlutil._
 import org.scalatest.BeforeAndAfterAll
-import org.scalatest.FunSpec
+import org.scalatest.FreeSpec
 import org.scalatest.Matchers
 import org.slf4j.LoggerFactory
 import scala.sys.process.Process
@@ -11,9 +11,9 @@ import scala.sys.process.ProcessLogger
 import scalikejdbc._
 import scalikejdbc.metadata.Column
 
-class ChangeRecorderSpec extends FunSpec with Matchers with BeforeAndAfterAll {
+class ChangeRecorderSpec extends FreeSpec with Matchers with BeforeAndAfterAll {
 
-  override def beforeAll() = {
+  override protected def beforeAll() = {
     val l = LoggerFactory.getLogger(getClass)
     Process("docker-compose up -d").!(ProcessLogger(l.debug, l.warn))
 
@@ -29,7 +29,7 @@ class ChangeRecorderSpec extends FunSpec with Matchers with BeforeAndAfterAll {
 
   private[this] implicit val session = AutoSession
 
-  def withDatabases(test: => Any) {
+  private[this] def withDatabases(test: => Any) {
     sqlutil.executeStatements(
       """DROP DATABASE IF EXISTS observee;
         |CREATE DATABASE observee;
@@ -40,7 +40,7 @@ class ChangeRecorderSpec extends FunSpec with Matchers with BeforeAndAfterAll {
     test
   }
 
-  def withUserAndDatabases(test: => Any) {
+  private[this] def withUserAndDatabases(test: => Any) {
     withDatabases {
       sqlutil.executeStatements(
         """CREATE USER 'changerecorder'@'%' IDENTIFIED BY 'cr';
@@ -51,7 +51,7 @@ class ChangeRecorderSpec extends FunSpec with Matchers with BeforeAndAfterAll {
     }
   }
 
-  def withTableUserAndDatabases(test: => Any) {
+  private[this] def withTableUserAndDatabases(test: => Any) {
     withUserAndDatabases {
       ("CREATE TABLE observee.table1(pr1 INTEGER not null," +
         "pr2 VARCHAR(30) not null, col1 INTEGER, PRIMARY KEY(pr1, pr2))").query
@@ -59,73 +59,87 @@ class ChangeRecorderSpec extends FunSpec with Matchers with BeforeAndAfterAll {
     }
   }
 
-  describe(".setUp") {
-    it("監視対象データベースに監視用ユーザーが存在しないと例外が出る") {
-      withDatabases {
-        a[Exception] should be thrownBy {
-          new ChangeRecorder(jdbcUrlForTest("observee"), jdbcUrlForTest("record"), "changerecorder", "cr").setUp
+  ".setUp" - {
+    "database permission aspect:" - {
+      "there is no user in observee database" - {
+        "produce Exception" in {
+          withDatabases {
+            a[Exception] should be thrownBy {
+              new ChangeRecorder(jdbcUrlForTest("observee"), jdbcUrlForTest("record"),
+                "changerecorder", "cr").setUp
+            }
+          }
+        }
+      }
+
+      "there is the user in observee database" - {
+        "there is no user in record database" - {
+          "produce Exception" in {
+            withDatabases {
+              Seq("CREATE USER 'changerecorder'@'%' IDENTIFIED BY 'changerecorder'",
+                "GRANT ALL ON observee.* TO 'changerecorder'@'%'").query
+
+              a[Exception] should be thrownBy {
+                new ChangeRecorder(jdbcUrlForTest("observee"), jdbcUrlForTest("record"),
+                  "changerecorder", "cr").setUp
+              }
+            }
+          }
+        }
+
+        "there is the user in record database" - {
+          "succeed with appropriate permission" in {
+            withUserAndDatabases {
+              noException should be thrownBy {
+                new ChangeRecorder(jdbcUrlForTest("observee"), jdbcUrlForTest("record"),
+                  "changerecorder", "cr").setUp
+              }
+            }
+          }
+
+          "produce Exception with insufficient permission" in {
+            withDatabases {
+              pending
+            }
+          }
+
+          // It is hard to check that there is warn log output
+          "produce warn log with excessive permission" in {
+            withDatabases {
+              pending
+            }
+          }
         }
       }
     }
 
-    it("記録データベースに監視用ユーザーが存在しないと例外が出る") {
-      withDatabases {
-        Seq(
-          "CREATE USER 'changerecorder'@'%' IDENTIFIED BY 'changerecorder'",
-          "GRANT ALL ON observee.* TO 'changerecorder'@'%'"
-        ).query
+    "record table definition aspect:" - {
 
-        a[Exception] should be thrownBy {
-          new ChangeRecorder(jdbcUrlForTest("observee"), jdbcUrlForTest("record"), "changerecorder", "cr").setUp
+      "create a record table in record database" in {
+        withUserAndDatabases {
+          "CREATE TABLE observee.table1(id INTEGER PRIMARY KEY not null)".query
+
+          new ChangeRecorder(jdbcUrlForTest("observee"), jdbcUrlForTest("record"),
+            "changerecorder", "cr").setUp
+
+          NamedDB('record).getTable("table1") shouldNot be(empty)
         }
       }
-    }
 
-    it("適切な権限があれば成功する") {
-      withUserAndDatabases {
-        noException should be thrownBy {
-          new ChangeRecorder(jdbcUrlForTest("observee"), jdbcUrlForTest("record"), "changerecorder", "cr").setUp
-        }
-      }
-    }
-
-    it("権限が不足していると例外が出る") {
-      withDatabases {
-        pending
-      }
-    }
-
-    // できればログに出力されたことを確認したいが結構工夫が必要そう
-    it("権限が不要に大きいと警告を出す") {
-      withDatabases {
-        pending
-      }
-    }
-
-    it("監視対象データベースに対応したテーブルが作られる") {
-      withUserAndDatabases {
-        "CREATE TABLE observee.table1(id INTEGER PRIMARY KEY not null)".query
-
-        new ChangeRecorder(jdbcUrlForTest("observee"), jdbcUrlForTest("record"), "changerecorder", "cr").setUp
-
-        NamedDB('record).getTable("table1") shouldNot be(empty)
-      }
-    }
-
-    describe("primary keyだけのテーブルができているかチェック") {
-
-      it("primary keyではないカラムがあっても記録データベース側のテーブルにはprimary keyカラムしかない") {
+      "the record table has only primary keys of observee table" in {
         withTableUserAndDatabases {
-          new ChangeRecorder(jdbcUrlForTest("observee"), jdbcUrlForTest("record"), "changerecorder", "cr").setUp
+          new ChangeRecorder(jdbcUrlForTest("observee"), jdbcUrlForTest("record"),
+            "changerecorder", "cr").setUp
 
           NamedDB('record).getTable("table1").get.columns.withFilter(_.isPrimaryKey).
             map(_.name) should be(List("pr1", "pr2"))
         }
       }
 
-      it("カラム定義が監視対象データベースと一致する") {
+      "column definitions of primary keys in record table match it in observee table" in {
         withTableUserAndDatabases {
-          new ChangeRecorder(jdbcUrlForTest("observee"), jdbcUrlForTest("record"), "changerecorder", "cr").setUp
+          new ChangeRecorder(jdbcUrlForTest("observee"), jdbcUrlForTest("record"),
+            "changerecorder", "cr").setUp
 
           NamedDB('record).getTable("table1").get.columns should matchPattern {
             case List(Column("pr1", _, "INT", _, true, true, false, _, _),
@@ -133,8 +147,10 @@ class ChangeRecorderSpec extends FunSpec with Matchers with BeforeAndAfterAll {
           }
         }
       }
+    }
 
-      it("行がある状態で実行しても記録テーブルは空") {
+    "record manipulation aspect:" - {
+      "no rows created in record table when a row is inserted to observee table before .setUp is executed" in {
         withTableUserAndDatabases {
           "INSERT INTO observee.table1 (pr1, pr2, col1) VALUES (1, 'test', 3)".query
 
@@ -146,95 +162,96 @@ class ChangeRecorderSpec extends FunSpec with Matchers with BeforeAndAfterAll {
         }
       }
 
-      describe(".setUp実行後") {
-
-        it("監視対象テーブルへ行を追加すると記録テーブルに対応する行ができる") {
-          withTableUserAndDatabases {
-            new ChangeRecorder(jdbcUrlForTest("observee"), jdbcUrlForTest("record"), "changerecorder", "cr").setUp
-
-            "INSERT INTO observee.table1 (pr1, pr2, col1) VALUES (1, 'test', 3)".query
-
-            NamedDB('record).readOnly { implicit session =>
-              SQL("SELECT COUNT(*) FROM table1").map(_.int(1)).single.apply().get should be(1)
-            }
-          }
-        }
-
-        it("監視対象テーブルの行を削除すると記録テーブルに対応する行ができる") {
-          withTableUserAndDatabases {
-            "INSERT INTO observee.table1 (pr1, pr2, col1) VALUES (1, 'test', 3)".query
-
-            new ChangeRecorder(jdbcUrlForTest("observee"), jdbcUrlForTest("record"), "changerecorder", "cr").setUp
-
-            "DELETE FROM observee.table1".query
-
-            NamedDB('record).readOnly { implicit session =>
-              SQL("SELECT COUNT(*) FROM table1").map(_.int(1)).single.apply().get should be(1)
-            }
-          }
-        }
-
-        it("Primary Keyのカラムが更新されると記録テーブルに対応する2行ができる") {
-          withTableUserAndDatabases {
-            "INSERT INTO observee.table1 (pr1, pr2, col1) VALUES (1, 'test', 3)".query
-
-            new ChangeRecorder(jdbcUrlForTest("observee"), jdbcUrlForTest("record"), "changerecorder", "cr").setUp
-
-            "UPDATE observee.table1 SET pr1=2".query
-
-            NamedDB('record).readOnly { implicit session =>
-              SQL("SELECT COUNT(*) FROM table1").map(_.int(1)).single.apply().get should be(2)
-            }
-          }
-        }
-
-        it("Primary Key以外のカラムが更新されると記録テーブルに対応する1行ができる") {
-          withTableUserAndDatabases {
-            "INSERT INTO observee.table1 (pr1, pr2, col1) VALUES (1, 'test', 3)".query
-
-            new ChangeRecorder(jdbcUrlForTest("observee"), jdbcUrlForTest("record"), "changerecorder", "cr").setUp
-
-            "UPDATE observee.table1 SET col1=2".query
-
-            NamedDB('record).readOnly { implicit session =>
-              SQL("SELECT COUNT(*) FROM table1").map(_.int(1)).single.apply().get should be(1)
-            }
-          }
-        }
-
-      }
-    }
-  }
-
-  describe(".tearDown") {
-
-    it("setUp後にtearDownすると監視対象テーブルへ行を追加しても記録テーブルへは行が追加されない") {
-      withTableUserAndDatabases {
-        noException should be thrownBy {
-          val cr = new ChangeRecorder(jdbcUrlForTest("observee"), jdbcUrlForTest("record"), "changerecorder", "cr")
-          cr.setUp
-          cr.tearDown
+      "the row created in record table when a row is inserted to observee table after .setUp is executed" in {
+        withTableUserAndDatabases {
+          new ChangeRecorder(jdbcUrlForTest("observee"), jdbcUrlForTest("record"), "changerecorder", "cr").setUp
 
           "INSERT INTO observee.table1 (pr1, pr2, col1) VALUES (1, 'test', 3)".query
 
           NamedDB('record).readOnly { implicit session =>
-            SQL("SELECT COUNT(*) FROM table1").map(_.int(1)).single.apply().get should be(0)
+            SQL("SELECT COUNT(*) FROM table1").map(_.int(1)).single.apply().get should be(1)
           }
         }
       }
-    }
 
-    it("setUp後にtearDown、さらにsetUpしても問題ない") {
-      withTableUserAndDatabases {
-        noException should be thrownBy {
-          val cr = new ChangeRecorder(jdbcUrlForTest("observee"), jdbcUrlForTest("record"), "changerecorder", "cr")
-          cr.setUp
-          cr.tearDown
-          cr.setUp
+      "the row created in record table when a row is deleted to observee table after .setUp is executed" in {
+        withTableUserAndDatabases {
+          "INSERT INTO observee.table1 (pr1, pr2, col1) VALUES (1, 'test', 3)".query
+
+          new ChangeRecorder(jdbcUrlForTest("observee"), jdbcUrlForTest("record"), "changerecorder", "cr").setUp
+
+          "DELETE FROM observee.table1".query
+
+          NamedDB('record).readOnly { implicit session =>
+            SQL("SELECT COUNT(*) FROM table1").map(_.int(1)).single.apply().get should be(1)
+          }
         }
       }
-    }
 
+      "the row created in record table when a primary key of a row is updated to observee table after .setUp is executed" in {
+        withTableUserAndDatabases {
+          "INSERT INTO observee.table1 (pr1, pr2, col1) VALUES (1, 'test', 3)".query
+
+          new ChangeRecorder(jdbcUrlForTest("observee"), jdbcUrlForTest("record"), "changerecorder", "cr").setUp
+
+          "UPDATE observee.table1 SET pr1=2".query
+
+          NamedDB('record).readOnly { implicit session =>
+            SQL("SELECT COUNT(*) FROM table1").map(_.int(1)).single.apply().get should be(2)
+          }
+        }
+      }
+
+      "the row created in record table when a non primary key of a row is updated to observee table after .setUp is executed" in {
+        withTableUserAndDatabases {
+          "INSERT INTO observee.table1 (pr1, pr2, col1) VALUES (1, 'test', 3)".query
+
+          new ChangeRecorder(jdbcUrlForTest("observee"), jdbcUrlForTest("record"), "changerecorder", "cr").setUp
+
+          "UPDATE observee.table1 SET col1=2".query
+
+          NamedDB('record).readOnly { implicit session =>
+            SQL("SELECT COUNT(*) FROM table1").map(_.int(1)).single.apply().get should be(1)
+          }
+        }
+      }
+
+    }
+  }
+
+  ".tearDown" - {
+
+    "record manipulation aspect:" - {
+      "no rows created in record table when a row is inserted to observee table after .tearDown is executed" in {
+        withTableUserAndDatabases {
+          noException should be thrownBy {
+            val cr = new ChangeRecorder(jdbcUrlForTest("observee"), jdbcUrlForTest("record"),
+              "changerecorder", "cr")
+            cr.setUp
+            cr.tearDown
+
+            "INSERT INTO observee.table1 (pr1, pr2, col1) VALUES (1, 'test', 3)".query
+
+            NamedDB('record).readOnly { implicit session =>
+              SQL("SELECT COUNT(*) FROM table1").map(_.int(1)).single.apply().get should be(0)
+            }
+          }
+        }
+      }
+
+      "no Exception in .setUp after .tearDown" in {
+        withTableUserAndDatabases {
+          noException should be thrownBy {
+            val cr = new ChangeRecorder(jdbcUrlForTest("observee"), jdbcUrlForTest("record"),
+              "changerecorder", "cr")
+            cr.setUp
+            cr.tearDown
+            cr.setUp
+          }
+        }
+      }
+
+    }
   }
 
 }
