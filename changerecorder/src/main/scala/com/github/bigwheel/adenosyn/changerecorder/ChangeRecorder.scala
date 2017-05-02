@@ -11,6 +11,11 @@ class ChangeRecorder private(observeeDbName: String, recordDbName: String,
     Commons2ConnectionPoolFactory(recordDbUrl.plainUrl, user, password)
   )
 
+  override def finalize(): Unit = {
+    observeePool.close
+    recordPool.close
+  }
+
   def setUp() = {
     using(DB(observeePool.borrow)) { observeeDb =>
       observeeDb.autoClose(false) // loanパターン使うときはautoCloseは自動でOFFにしてくれないものか…
