@@ -6,13 +6,76 @@ import scalaz.Scalaz._
 import scalikejdbc.DBSession
 import scalikejdbc.SQL
 
+// TODO: 現在のプログラム上の制約。同じテーブルを複数回JOINすることができない(上で肉付けするときに
+// どちらのテーブルかわからないから
 package object dsl {
 
-  type TableName = String
-  type ColumnName = String
-  type ScalaTypeName = String
-
   def fetchJsonResult(jsValue: JsValue)(implicit session: DBSession): List[Json] = {
+
+    case class ParsedColumn(tableName: String, columnName: String, dimention: Int, value: Any) {
+      // arrayじゃなくても結果返すので注意
+      def drill(index: Int): ParsedColumn = value match {
+        case a: Array[_] => new ParsedColumn(tableName, columnName, dimention - 1, a(index))
+        case a => new ParsedColumn(tableName, columnName, dimention, a)
+      }
+
+      val length: Option[Int] = value match {
+        case a: Array[_] => a.length.some
+        case _ => none
+      }
+    }
+
+    def structureSqlResult(sqlResult: List[Map[String, Any]]): List[List[ParsedColumn]] = {
+      val a = for (row <- sqlResult) yield {
+        for ((columnName, value) <- row) yield {
+          val result =
+            """\A(.+)__(.+?)__(.+?)(s*)\Z""".r("tableName", "columnName", "type", "dimention").
+              findFirstMatchIn(columnName).get
+
+          val dim = result.group("dimention").count(_ == 's')
+          def drill(level: Int, str: String): Any = if (dim - level == 0) {
+            result.group("type") match {
+              case "Int" => str.toInt
+              case "String" => str
+            }
+          } else {
+            val splitted = str.asInstanceOf[String].split("," + (level + 1).toString)
+            splitted.map(drill(level + 1, _))
+          }
+          ParsedColumn(result.group("tableName"),
+            result.group("columnName"),
+            dim,
+            drill(0, value.toString))
+        }
+      }
+      a.map(_.toList)
+    }
+
+    def toJsonObj(parsedColumnss: List[List[ParsedColumn]],
+      jsonStructure: JsValue): List[Json] = {
+      def f(row: List[ParsedColumn], jsonTree: JsValue): Json = {
+        def getColumn(tableName: String, columnName: String): ParsedColumn =
+          row.find(c => c.tableName == tableName && c.columnName == columnName).get
+
+        jsonTree match {
+          case JsObject(_, properties) =>
+            Json(properties.map { case (k, v) => k := f(row, v) }.toSeq: _*)
+          case JsArray(_, _jsValue) =>
+            val arrayLengths = row.flatMap(_.length).distinct
+            require(arrayLengths.length == 1)
+            (0 until arrayLengths.head).map { index =>
+              f(row.map(_.drill(index)), _jsValue)
+            }.toList |> jArray.apply
+          case JsString(tableName, columnName) =>
+            jString(getColumn(tableName, columnName).value.asInstanceOf[String])
+          case JsInt(tableName, columnName) =>
+            jNumber(getColumn(tableName, columnName).value.asInstanceOf[Int])
+        }
+      }
+
+      for (row <- parsedColumnss) yield f(row, jsonStructure)
+    }
+
     val queryString: SqlQuery = jsValue.toSql
     val sqlResult: List[Map[String, Any]] = SQL(queryString).map(_.toMap).list.apply()
     val parsedColumnss: List[List[ParsedColumn]] = structureSqlResult(sqlResult)
@@ -20,82 +83,9 @@ package object dsl {
     sqlResultToJson
   }
 
-  case class Column(val name: ColumnName, val scalaTypeName: ScalaTypeName)
-
-  case class TableNameAndColumn(val tableName: TableName, column: Column) {
-    def this(table: TableForConstruct, column: Column) = this(table.name, column)
-
-    val toSql = toFullColumnPath(tableName, column.name)
-  }
-
-  sealed trait JsValue {
-    /**
-      * 構造定義オブジェクトの中からテーブル構造のみを取り出す(もちろんTreeになる)
-      */
-    def constructTableTree: Seq[JoinDefinitionBase]
-
-    /**
-      * 使用するカラム一覧を出す。ただしJoinDefinitionで使われるカラムは除く
-      * (そちらは統合したツリーに対して計算する方が楽であるため、別で計算する)
-      */
-    def listUseColumns: Seq[(TableName, Column)]
-
-    def toSql: SqlQuery = {
-      def enumerateUseColumnsByTable(jsValue: JsValue,
-        tableTree: Table): Map[TableName, Seq[Column]] = {
-        val columns = jsValue.listUseColumns ++ tableTree.listUseColumns
-        columns.groupBy(_._1).mapValues(_.map(_._2))
-      }
-      def appendColumnInfoToTree(tableTree: Table,
-        columnDetails: Map[TableName, Seq[Column]]): TableForConstruct =
-        tableTree.appendColumns(columnDetails)
-
-
-      val tableTreeWithoutColumns = constructTableTree.head.childSide
-      val columnDetails = enumerateUseColumnsByTable(this, tableTreeWithoutColumns)
-      val tableTree = appendColumnInfoToTree(tableTreeWithoutColumns, columnDetails)
-
-      tableTree.toSql
-    }
-  }
-
-  final case class JsString(tableName: String, columnName: String) extends JsValue {
-    def constructTableTree: Seq[JoinDefinitionBase] = Seq.empty
-
-    def listUseColumns = Seq((tableName, new Column(columnName, "String")))
-  }
-
-  final case class JsInt(tableName: String, columnName: String) extends JsValue {
-    def constructTableTree: Seq[JoinDefinitionBase] = Seq.empty
-
-    def listUseColumns = Seq((tableName, new Column(columnName, "Int")))
-  }
-
-  final case class JsObject(
-    jdo: Option[JoinDefinitionBase],
-    properties: Map[String, JsValue]) extends JsValue {
-    def constructTableTree: Seq[JoinDefinitionBase] = jdo match {
-      case Some(jd) =>
-        val newJds = properties.values.flatMap(_.constructTableTree).toSeq ++ jd.childSide.joinDefinitions
-        Seq(jd.copy(jd.childSide.update(newJds)))
-      case None =>
-        properties.values.flatMap(_.constructTableTree).toSeq
-    }
-
-    def listUseColumns = properties.values.flatMap(_.listUseColumns).toSeq
-  }
-
-  final case class JsArray(jdo: Option[JoinDefinitionBase], elem: JsValue) extends JsValue {
-    def constructTableTree: Seq[JoinDefinitionBase] = jdo match {
-      case Some(jd) =>
-        val newJds = elem.constructTableTree ++ jd.childSide.joinDefinitions
-        Seq(jd.copy(new Table(jd.childSide.name, newJds: _*)))
-      case None =>
-        elem.constructTableTree
-    }
-
-    def listUseColumns = elem.listUseColumns
-  }
+  type TableName = String
+  type ColumnName = String
+  type ScalaTypeName = String
 
   case class Table(name: TableName, joinDefinitions: JoinDefinitionBase*) {
     def update(_joinDefinitions: Seq[JoinDefinitionBase]) = new Table(name, _joinDefinitions: _*)
@@ -105,10 +95,18 @@ package object dsl {
     def listUseColumns: Seq[(TableName, Column)] =
       joinDefinitions.flatMap(_.listUseColumns(this.name))
 
-    def appendColumns(columnDetails: Map[TableName, Seq[Column]]): TableForConstruct =
+    private[dsl] def appendColumns(columnDetails: Map[TableName, Seq[Column]]): TableForConstruct =
       new TableForConstruct(name,
         joinDefinitions.map(_.appendColumns(columnDetails)),
         columnDetails(name))
+  }
+
+  case class Column(val name: ColumnName, val scalaTypeName: ScalaTypeName)
+
+  case class TableNameAndColumn(val tableName: TableName, column: Column) {
+    def this(table: TableForConstruct, column: Column) = this(table.name, column)
+
+    val toSql = toFullColumnPath(tableName, column.name)
   }
 
   sealed trait JoinDefinitionBase {
@@ -165,6 +163,84 @@ package object dsl {
         childSide.appendColumns(columnDetails))
   }
 
+
+
+  //------------------------------------//
+  // 以下JSON構造定義関連
+  //------------------------------------//
+
+  sealed trait JsValue {
+    /**
+      * 構造定義オブジェクトの中からテーブル構造のみを取り出す(もちろんTreeになる)
+      */
+    def constructTableTree: Seq[JoinDefinitionBase]
+
+    /**
+      * 使用するカラム一覧を出す。ただしJoinDefinitionで使われるカラムは除く
+      * (そちらは統合したツリーに対して計算する方が楽であるため、別で計算する)
+      */
+    def listUseColumns: Seq[(TableName, Column)]
+
+    final def toSql: SqlQuery = {
+      def enumerateUseColumnsByTable(jsValue: JsValue,
+        tableTree: Table): Map[TableName, Seq[Column]] = {
+        val columns = jsValue.listUseColumns ++ tableTree.listUseColumns
+        columns.groupBy(_._1).mapValues(_.map(_._2))
+      }
+      def appendColumnInfoToTree(tableTree: Table,
+        columnDetails: Map[TableName, Seq[Column]]): TableForConstruct =
+        tableTree.appendColumns(columnDetails)
+
+
+      val tableTreeWithoutColumns = constructTableTree.head.childSide
+      val columnDetails = enumerateUseColumnsByTable(this, tableTreeWithoutColumns)
+      val tableTree = appendColumnInfoToTree(tableTreeWithoutColumns, columnDetails)
+
+      tableTree.toSql
+    }
+  }
+
+  final case class JsString(tableName: String, columnName: String) extends JsValue {
+    def constructTableTree: Seq[JoinDefinitionBase] = Seq.empty
+
+    def listUseColumns = Seq((tableName, new Column(columnName, "String")))
+  }
+
+  final case class JsInt(tableName: String, columnName: String) extends JsValue {
+    def constructTableTree: Seq[JoinDefinitionBase] = Seq.empty
+
+    def listUseColumns = Seq((tableName, new Column(columnName, "Int")))
+  }
+
+  final case class JsObject(
+    jdo: Option[JoinDefinitionBase],
+    properties: Map[String, JsValue]) extends JsValue {
+    def constructTableTree: Seq[JoinDefinitionBase] = jdo match {
+      case Some(jd) =>
+        val newJds = properties.values.flatMap(_.constructTableTree).toSeq ++ jd.childSide.joinDefinitions
+        Seq(jd.copy(jd.childSide.update(newJds)))
+      case None =>
+        properties.values.flatMap(_.constructTableTree).toSeq
+    }
+
+    def listUseColumns = properties.values.flatMap(_.listUseColumns).toSeq
+  }
+
+  final case class JsArray(jdo: Option[JoinDefinitionBase], elem: JsValue) extends JsValue {
+    def constructTableTree: Seq[JoinDefinitionBase] = jdo match {
+      case Some(jd) =>
+        val newJds = elem.constructTableTree ++ jd.childSide.joinDefinitions
+        Seq(jd.copy(new Table(jd.childSide.name, newJds: _*)))
+      case None =>
+        elem.constructTableTree
+    }
+
+    def listUseColumns = elem.listUseColumns
+  }
+
+
+
+
   //------------------------------------//
   // 以下private
   //------------------------------------//
@@ -189,7 +265,7 @@ package object dsl {
   /**
     * https://dev.mysql.com/doc/refman/5.6/ja/select.html
     */
-  class ColumnSelectExpr private(selectExpr: String,
+  private[dsl] class ColumnSelectExpr private(selectExpr: String,
     val aliasName: String,
     val originalColumn: TableNameAndColumn) {
 
@@ -208,7 +284,7 @@ package object dsl {
 
   private type SqlQuery = String
 
-  class TableForConstruct(
+  private[dsl] class TableForConstruct(
     val name: TableName,
     joinDefinitions: Seq[JoinDefinitionForConstruct],
     columns: Seq[Column]) {
@@ -230,7 +306,7 @@ package object dsl {
     }
   }
 
-  class JoinDefinitionForConstruct(
+  private[dsl] class JoinDefinitionForConstruct(
     parentSideColumn: Column,
     groupBy: Boolean,
     childSideColumn: Column,
@@ -281,76 +357,6 @@ package object dsl {
           newChildTableName)
       }", newNewFcis)
     }
-  }
-
-  // TODO: 現在のプログラム上の制約。同じテーブルを複数回JOINすることができない(上で肉付けするときに
-  // どちらのテーブルかわからないから
-
-  private case class ParsedColumn(tableName: String,
-    columnName: String,
-    dimention: Int,
-    value: Any) {
-    // arrayじゃなくても結果返すので注意
-    def drill(index: Int): ParsedColumn = value match {
-      case a: Array[_] => new ParsedColumn(tableName, columnName, dimention - 1, a(index))
-      case a => new ParsedColumn(tableName, columnName, dimention, a)
-    }
-
-    val length: Option[Int] = value match {
-      case a: Array[_] => a.length.some
-      case _ => none
-    }
-  }
-
-  private def structureSqlResult(sqlResult: List[Map[String, Any]]): List[List[ParsedColumn]] = {
-    val a = for (row <- sqlResult) yield {
-      for ((columnName, value) <- row) yield {
-        val result =
-          """\A(.+)__(.+?)__(.+?)(s*)\Z""".r("tableName", "columnName", "type", "dimention").
-            findFirstMatchIn(columnName).get
-
-        val dim = result.group("dimention").count(_ == 's')
-        def drill(level: Int, str: String): Any = if (dim - level == 0) {
-          result.group("type") match {
-            case "Int" => str.toInt
-            case "String" => str
-          }
-        } else {
-          val splitted = str.asInstanceOf[String].split("," + (level + 1).toString)
-          splitted.map(drill(level + 1, _))
-        }
-        ParsedColumn(result.group("tableName"),
-          result.group("columnName"),
-          dim,
-          drill(0, value.toString))
-      }
-    }
-    a.map(_.toList)
-  }
-
-  private def toJsonObj(parsedColumnss: List[List[ParsedColumn]],
-    jsonStructure: JsValue): List[Json] = {
-    def f(row: List[ParsedColumn], jsonTree: JsValue): Json = {
-      def getColumn(tableName: String, columnName: String): ParsedColumn =
-        row.find(c => c.tableName == tableName && c.columnName == columnName).get
-
-      jsonTree match {
-        case JsObject(_, properties) =>
-          Json(properties.map { case (k, v) => k := f(row, v) }.toSeq: _*)
-        case JsArray(_, jsValue) =>
-          val arrayLengths = row.flatMap(_.length).distinct
-          require(arrayLengths.length == 1)
-          (0 until arrayLengths.head).map { index =>
-            f(row.map(_.drill(index)), jsValue)
-          }.toList |> jArray.apply
-        case JsString(tableName, columnName) =>
-          jString(getColumn(tableName, columnName).value.asInstanceOf[String])
-        case JsInt(tableName, columnName) =>
-          jNumber(getColumn(tableName, columnName).value.asInstanceOf[Int])
-      }
-    }
-
-    for (row <- parsedColumnss) yield f(row, jsonStructure)
   }
 
 }
