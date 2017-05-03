@@ -5,12 +5,16 @@ import argonaut._
 import com.github.bigwheel.adenosyn.sqlutil
 import org.scalatest.FunSpec
 import org.scalatest.Matchers
+import org.slf4j.LoggerFactory
+import scala.sys.process.Process
+import scala.sys.process.ProcessLogger
 import scalaz.Scalaz._
 import scalikejdbc._
 
 class DslSpec extends FunSpec with Matchers {
 
-  sqlutil.suppressLog()
+  val l = LoggerFactory.getLogger(getClass)
+  Process("docker-compose up -d").!(ProcessLogger(l.debug, l.warn))
 
   Class.forName("com.mysql.jdbc.Driver")
 

@@ -17,8 +17,6 @@ package object dsl {
 
   case class Column(val name: ColumnName, val scalaTypeName: ScalaTypeName)
 
-  // Fully Qualified Column Name テーブル名も省略していないカラム名(勝手に命名)
-  // TODO: 第二引数をColumnにする
   case class TableNameAndColumn(val tableName: TableName, column: Column) {
     def this(table: TableForConstruct, column: Column) = this(table.name, column)
 
