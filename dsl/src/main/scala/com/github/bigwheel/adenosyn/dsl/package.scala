@@ -12,8 +12,13 @@ package object dsl {
   type ColumnName = String
   type ScalaTypeName = String
 
-  private def toFullColumnPath(tableName: TableName, columnName: ColumnName) =
-    tableName + "." + columnName
+  def fetchJsonResult(jsValue: JsValue)(implicit session: DBSession): List[Json] = {
+    val queryString: SqlQuery = jsValue.toSql
+    val sqlResult: List[Map[String, Any]] = SQL(queryString).map(_.toMap).list.apply()
+    val parsedColumnss: List[List[ParsedColumn]] = structureSqlResult(sqlResult)
+    def sqlResultToJson: List[Json] = toJsonObj(parsedColumnss, jsValue)
+    sqlResultToJson
+  }
 
   case class Column(val name: ColumnName, val scalaTypeName: ScalaTypeName)
 
@@ -21,40 +26,6 @@ package object dsl {
     def this(table: TableForConstruct, column: Column) = this(table.name, column)
 
     val toSql = toFullColumnPath(tableName, column.name)
-  }
-
-  private object ColumnSelectExpr {
-
-    implicit class RichColumnSelectQuerySet(csqSet: Set[ColumnSelectExpr]) {
-      def getQuery: String = csqSet.map(_.toSql).mkString(", ")
-    }
-
-    def ensureColumnInfoToAlias(table: TableForConstruct, column: Column) = {
-      val tnac = new TableNameAndColumn(table, column)
-      new ColumnSelectExpr(tnac.toSql, s"${table.name}__${column.name}__${column.scalaTypeName}",
-        tnac)
-    }
-
-  }
-
-  /**
-    * https://dev.mysql.com/doc/refman/5.6/ja/select.html
-    */
-  class ColumnSelectExpr private(selectExpr: String,
-    val aliasName: String,
-    val originalColumn: TableNameAndColumn) {
-
-    val toSql = s"$selectExpr AS $aliasName"
-
-    def bindUp(nestLevel: Int): ColumnSelectExpr = new ColumnSelectExpr(
-      s"GROUP_CONCAT(${this.selectExpr} SEPARATOR ',${nestLevel + 1}')",
-      this.aliasName + "s",
-      this.originalColumn
-    )
-
-    def updateTableName(newTableName: TableName): ColumnSelectExpr = new ColumnSelectExpr(
-      toFullColumnPath(newTableName, this.aliasName), this.aliasName, this.originalColumn
-    )
   }
 
   sealed trait JsValue {
@@ -195,15 +166,44 @@ package object dsl {
   }
 
   //------------------------------------//
-  // ここから旧tableパッケージ内のコード
+  // 以下private
   //------------------------------------//
 
-  def fetchJsonResult(jsValue: JsValue)(implicit session: DBSession): List[Json] = {
-    val queryString: SqlQuery = jsValue.toSql
-    val sqlResult: List[Map[String, Any]] = SQL(queryString).map(_.toMap).list.apply()
-    val parsedColumnss: List[List[ParsedColumn]] = structureSqlResult(sqlResult)
-    def sqlResultToJson: List[Json] = toJsonObj(parsedColumnss, jsValue)
-    sqlResultToJson
+  private def toFullColumnPath(tableName: TableName, columnName: ColumnName) =
+    tableName + "." + columnName
+
+  private object ColumnSelectExpr {
+
+    implicit class RichColumnSelectQuerySet(csqSet: Set[ColumnSelectExpr]) {
+      def getQuery: String = csqSet.map(_.toSql).mkString(", ")
+    }
+
+    def ensureColumnInfoToAlias(table: TableForConstruct, column: Column) = {
+      val tnac = new TableNameAndColumn(table, column)
+      new ColumnSelectExpr(tnac.toSql, s"${table.name}__${column.name}__${column.scalaTypeName}",
+        tnac)
+    }
+
+  }
+
+  /**
+    * https://dev.mysql.com/doc/refman/5.6/ja/select.html
+    */
+  class ColumnSelectExpr private(selectExpr: String,
+    val aliasName: String,
+    val originalColumn: TableNameAndColumn) {
+
+    val toSql = s"$selectExpr AS $aliasName"
+
+    def bindUp(nestLevel: Int): ColumnSelectExpr = new ColumnSelectExpr(
+      s"GROUP_CONCAT(${this.selectExpr} SEPARATOR ',${nestLevel + 1}')",
+      this.aliasName + "s",
+      this.originalColumn
+    )
+
+    def updateTableName(newTableName: TableName): ColumnSelectExpr = new ColumnSelectExpr(
+      toFullColumnPath(newTableName, this.aliasName), this.aliasName, this.originalColumn
+    )
   }
 
   private type SqlQuery = String
