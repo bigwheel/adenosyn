@@ -1,8 +1,8 @@
-package com.github.bigwheel.adenosyn.dsl
+package com.github.bigwheel.adenosyn.recordstojson
 
 import argonaut.Argonaut._
 import argonaut._
-import com.github.bigwheel.adenosyn.dsl.puredsl._
+import com.github.bigwheel.adenosyn.recordstojson.dsl._
 import scalaz.Scalaz._
 import scalikejdbc.DBSession
 import scalikejdbc.SQL
