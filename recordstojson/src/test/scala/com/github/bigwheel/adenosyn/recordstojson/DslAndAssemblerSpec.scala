@@ -1,8 +1,8 @@
-package com.github.bigwheel.adenosyn.dsl
+package com.github.bigwheel.adenosyn.recordstojson
 
 import argonaut.Argonaut._
 import argonaut._
-import com.github.bigwheel.adenosyn.dsl.puredsl._
+import com.github.bigwheel.adenosyn.recordstojson.dsl._
 import com.github.bigwheel.adenosyn.sqlutil
 import org.scalatest.FunSpec
 import org.scalatest.Matchers
@@ -12,7 +12,7 @@ import scala.sys.process.ProcessLogger
 import scalaz.Scalaz._
 import scalikejdbc._
 
-class DslSpec extends FunSpec with Matchers {
+class DslAndAssemblerSpec extends FunSpec with Matchers {
 
   val l = LoggerFactory.getLogger(getClass)
   Process("docker-compose up -d").!(ProcessLogger(l.debug, l.warn))

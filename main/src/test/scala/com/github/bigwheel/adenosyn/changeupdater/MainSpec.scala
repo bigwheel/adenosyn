@@ -2,8 +2,8 @@ package com.github.bigwheel.adenosyn.changeupdater
 
 import com.github.bigwheel.adenosyn.JdbcUrl
 import com.github.bigwheel.adenosyn.changerecorder.ChangeRecorder
-import com.github.bigwheel.adenosyn.dsl.Assembler
-import com.github.bigwheel.adenosyn.dsl.puredsl._
+import com.github.bigwheel.adenosyn.recordstojson.Assembler
+import com.github.bigwheel.adenosyn.recordstojson.dsl._
 import com.github.bigwheel.adenosyn.sqlutil
 import com.sksamuel.elastic4s.ElasticClient
 import com.sksamuel.elastic4s.ElasticDsl._
