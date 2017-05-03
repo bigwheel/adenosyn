@@ -2,6 +2,7 @@ package com.github.bigwheel.adenosyn.dsl
 
 import argonaut.Argonaut._
 import argonaut._
+import com.github.bigwheel.adenosyn.dsl.puredsl._
 import com.github.bigwheel.adenosyn.sqlutil
 import org.scalatest.FunSpec
 import org.scalatest.Matchers
@@ -214,7 +215,7 @@ class DslSpec extends FunSpec with Matchers {
 
   for (test <- tests) {
     it(test.title) {
-      fetchJsonResult(test.input) should equal(test.expected)
+      new Assembler().AssembleAll(test.input) should equal(test.expected)
     }
   }
 
@@ -247,7 +248,7 @@ class DslSpec extends FunSpec with Matchers {
       )
     ) // TODO: 例外条件を絞ってこっちが意図して例外を出すようにする
     a[Exception] should be thrownBy {
-      fetchJsonResult(jsValue)
+      new Assembler().AssembleAll(jsValue)
     }
   }
 
