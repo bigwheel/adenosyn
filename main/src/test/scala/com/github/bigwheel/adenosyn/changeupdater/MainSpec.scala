@@ -2,7 +2,8 @@ package com.github.bigwheel.adenosyn.changeupdater
 
 import com.github.bigwheel.adenosyn.JdbcUrl
 import com.github.bigwheel.adenosyn.changerecorder.ChangeRecorder
-import com.github.bigwheel.adenosyn.dsl._
+import com.github.bigwheel.adenosyn.dsl.Assembler
+import com.github.bigwheel.adenosyn.dsl.puredsl._
 import com.github.bigwheel.adenosyn.sqlutil
 import com.sksamuel.elastic4s.ElasticClient
 import com.sksamuel.elastic4s.ElasticDsl._
@@ -111,7 +112,8 @@ class MainSpec extends FunSpec with Matchers with BeforeAndAfter with BeforeAndA
       val pool = Commons2ConnectionPoolFactory(observeeDbUrl.plainUrl, user, password)
       scalikejdbc.using(DB(pool.borrow)) { observeeDb =>
         observeeDb.autoCommit { implicit session =>
-          val json = fetchJsonResult(mappings.head._1)(session).head
+          val a = new Assembler
+          val json = a.AssembleAll(mappings.head._1).head
           val noIdJson = json.hcursor.downField("_id").delete.undo.get
           val idString = json.field("_id").get.string.get
           client.execute {

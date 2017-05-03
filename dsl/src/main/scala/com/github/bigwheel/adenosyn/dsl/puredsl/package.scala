@@ -1,87 +1,9 @@
-package com.github.bigwheel.adenosyn
+package com.github.bigwheel.adenosyn.dsl
 
-import argonaut.Argonaut._
-import argonaut._
-import scalaz.Scalaz._
-import scalikejdbc.DBSession
-import scalikejdbc.SQL
-
-// TODO: 現在のプログラム上の制約。同じテーブルを複数回JOINすることができない(上で肉付けするときに
-// どちらのテーブルかわからないから
-package object dsl {
-
-  def fetchJsonResult(jsValue: JsValue)(implicit session: DBSession): List[Json] = {
-
-    case class ParsedColumn(tableName: String, columnName: String, dimention: Int, value: Any) {
-      // arrayじゃなくても結果返すので注意
-      def drill(index: Int): ParsedColumn = value match {
-        case a: Array[_] => new ParsedColumn(tableName, columnName, dimention - 1, a(index))
-        case a => new ParsedColumn(tableName, columnName, dimention, a)
-      }
-
-      val length: Option[Int] = value match {
-        case a: Array[_] => a.length.some
-        case _ => none
-      }
-    }
-
-    def structureSqlResult(sqlResult: List[Map[String, Any]]): List[List[ParsedColumn]] = {
-      val a = for (row <- sqlResult) yield {
-        for ((columnName, value) <- row) yield {
-          val result =
-            """\A(.+)__(.+?)__(.+?)(s*)\Z""".r("tableName", "columnName", "type", "dimention").
-              findFirstMatchIn(columnName).get
-
-          val dim = result.group("dimention").count(_ == 's')
-          def drill(level: Int, str: String): Any = if (dim - level == 0) {
-            result.group("type") match {
-              case "Int" => str.toInt
-              case "String" => str
-            }
-          } else {
-            val splitted = str.asInstanceOf[String].split("," + (level + 1).toString)
-            splitted.map(drill(level + 1, _))
-          }
-          ParsedColumn(result.group("tableName"),
-            result.group("columnName"),
-            dim,
-            drill(0, value.toString))
-        }
-      }
-      a.map(_.toList)
-    }
-
-    def toJsonObj(parsedColumnss: List[List[ParsedColumn]],
-      jsonStructure: JsValue): List[Json] = {
-      def f(row: List[ParsedColumn], jsonTree: JsValue): Json = {
-        def getColumn(tableName: String, columnName: String): ParsedColumn =
-          row.find(c => c.tableName == tableName && c.columnName == columnName).get
-
-        jsonTree match {
-          case JsObject(_, properties) =>
-            Json(properties.map { case (k, v) => k := f(row, v) }.toSeq: _*)
-          case JsArray(_, _jsValue) =>
-            val arrayLengths = row.flatMap(_.length).distinct
-            require(arrayLengths.length == 1)
-            (0 until arrayLengths.head).map { index =>
-              f(row.map(_.drill(index)), _jsValue)
-            }.toList |> jArray.apply
-          case JsString(tableName, columnName) =>
-            jString(getColumn(tableName, columnName).value.asInstanceOf[String])
-          case JsInt(tableName, columnName) =>
-            jNumber(getColumn(tableName, columnName).value.asInstanceOf[Int])
-        }
-      }
-
-      for (row <- parsedColumnss) yield f(row, jsonStructure)
-    }
-
-    val queryString: SqlQuery = jsValue.toSql
-    val sqlResult: List[Map[String, Any]] = SQL(queryString).map(_.toMap).list.apply()
-    val parsedColumnss: List[List[ParsedColumn]] = structureSqlResult(sqlResult)
-    def sqlResultToJson: List[Json] = toJsonObj(parsedColumnss, jsValue)
-    sqlResultToJson
-  }
+/**
+  * Purpose: generate sql for RDBMS to JSON
+  */
+package object puredsl {
 
   type TableName = String
   type ColumnName = String
@@ -95,7 +17,7 @@ package object dsl {
     def listUseColumns: Seq[(TableName, Column)] =
       joinDefinitions.flatMap(_.listUseColumns(this.name))
 
-    private[dsl] def appendColumns(columnDetails: Map[TableName, Seq[Column]]): TableForConstruct =
+    private[puredsl] def appendColumns(columnDetails: Map[TableName, Seq[Column]]): TableForConstruct =
       new TableForConstruct(name,
         joinDefinitions.map(_.appendColumns(columnDetails)),
         columnDetails(name))
@@ -168,6 +90,8 @@ package object dsl {
   //------------------------------------//
   // 以下JSON構造定義関連
   //------------------------------------//
+
+  type SqlQuery = String
 
   sealed trait JsValue {
     /**
@@ -265,7 +189,7 @@ package object dsl {
   /**
     * https://dev.mysql.com/doc/refman/5.6/ja/select.html
     */
-  private[dsl] class ColumnSelectExpr private(selectExpr: String,
+  private[puredsl] class ColumnSelectExpr private(selectExpr: String,
     val aliasName: String,
     val originalColumn: TableNameAndColumn) {
 
@@ -282,9 +206,7 @@ package object dsl {
     )
   }
 
-  private type SqlQuery = String
-
-  private[dsl] class TableForConstruct(
+  private[puredsl] class TableForConstruct(
     val name: TableName,
     joinDefinitions: Seq[JoinDefinitionForConstruct],
     columns: Seq[Column]) {
@@ -294,7 +216,7 @@ package object dsl {
 
     def toSql: SqlQuery = toSql(0)._1
 
-    private[dsl] def toSql(nestLevel: Int): (SqlQuery, Set[ColumnSelectExpr]) = {
+    private[puredsl] def toSql(nestLevel: Int): (SqlQuery, Set[ColumnSelectExpr]) = {
       val children = joinDefinitions.zipWithIndex.map { case (jd, i) => jd.toSql(this,
         s"_$i",
         nestLevel)
@@ -306,7 +228,7 @@ package object dsl {
     }
   }
 
-  private[dsl] class JoinDefinitionForConstruct(
+  private[puredsl] class JoinDefinitionForConstruct(
     parentSideColumn: Column,
     groupBy: Boolean,
     childSideColumn: Column,
@@ -331,7 +253,7 @@ package object dsl {
       }"
     }
 
-    private[dsl] def toSql(parentTable: TableForConstruct,
+    private[puredsl] def toSql(parentTable: TableForConstruct,
       newChildTableName: String,
       nestLevel: Int):
     (SqlQuery, Set[ColumnSelectExpr]) = {
