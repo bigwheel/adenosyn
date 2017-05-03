@@ -45,7 +45,7 @@ lazy val changerecorder = project.
   libraryDependencies ++= scalikejdbcLibs ++ scalatestLibs
 )
 
-lazy val puredsl = (project in file("dsl")).
+lazy val recordstojson = project.
   dependsOn(common % "test->test;compile->compile").
   settings(baseSettings).
   settings(
@@ -61,7 +61,7 @@ lazy val puredsl = (project in file("dsl")).
 lazy val main = project.
   dependsOn(common % "test->test;compile->compile").
   dependsOn(changerecorder).
-  dependsOn(puredsl).
+  dependsOn(recordstojson).
   settings(baseSettings).
   settings(
     name := "adenosyn",
