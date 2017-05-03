@@ -10,46 +10,46 @@ package object puredsl {
   type ScalaTypeName = String
 
   case class Table(name: TableName, joinDefinitions: JoinDefinitionBase*) {
-    def update(_joinDefinitions: Seq[JoinDefinitionBase]) = new Table(name, _joinDefinitions: _*)
+    private[puredsl] def update(_joinDefinitions: Seq[JoinDefinitionBase]) = new Table(name, _joinDefinitions: _*)
 
-    def digUpTables: Seq[Table] = this +: joinDefinitions.flatMap(_.digUpTables)
+    private[puredsl] def digUpTables: Seq[Table] = this +: joinDefinitions.flatMap(_.digUpTables)
 
-    def listUseColumns: Seq[(TableName, Column)] =
+    private[puredsl] def listUseColumns: Seq[(TableName, Column)] =
       joinDefinitions.flatMap(_.listUseColumns(this.name))
 
-    private[puredsl] def appendColumns(columnDetails: Map[TableName, Seq[Column]]): TableForConstruct =
-      new TableForConstruct(name,
+    private[puredsl] def appendColumns(columnDetails: Map[TableName, Seq[Column]]): TableWithColumns =
+      new TableWithColumns(name,
         joinDefinitions.map(_.appendColumns(columnDetails)),
         columnDetails(name))
   }
 
   case class Column(val name: ColumnName, val scalaTypeName: ScalaTypeName)
 
-  case class TableNameAndColumn(val tableName: TableName, column: Column) {
-    def this(table: TableForConstruct, column: Column) = this(table.name, column)
 
-    val toSql = toFullColumnPath(tableName, column.name)
-  }
+
+  //------------------------------------//
+  // .*JoinDefinition.*
+  //------------------------------------//
 
   sealed trait JoinDefinitionBase {
-    val childSide: Table
+    private[puredsl] val childSide: Table
 
-    def copy(childSide: Table): JoinDefinitionBase
+    private[puredsl] def digUpTables: Seq[Table] = childSide.digUpTables
 
-    def digUpTables: Seq[Table] = childSide.digUpTables
+    protected[puredsl] def copy(childSide: Table): JoinDefinitionBase
 
     // これ以下のやつはJoinDefinitionクラスでのみ使われるので、構造を見なおしたらここで定義する必要なくなる
-    def listUseColumns(parentTableName: TableName): Seq[(TableName, Column)]
+    protected[puredsl] def listUseColumns(parentTableName: TableName): Seq[(TableName, Column)]
 
-    def appendColumns(columnDetails: Map[TableName, Seq[Column]]): JoinDefinitionForConstruct
+    protected[puredsl] def appendColumns(columnDetails: Map[TableName, Seq[Column]]): JoinDefinitionForConstruct
   }
 
-  case class RootJoinDefinition(childSide: Table) extends JoinDefinitionBase {
-    override def copy(childSide: Table): JoinDefinitionBase = new RootJoinDefinition(childSide)
+  final case class RootJoinDefinition(childSide: Table) extends JoinDefinitionBase {
+    override protected[puredsl] def copy(childSide: Table): JoinDefinitionBase = new RootJoinDefinition(childSide)
 
-    override def listUseColumns(parentTableName: TableName) = childSide.listUseColumns
+    override protected[puredsl] def listUseColumns(parentTableName: TableName) = childSide.listUseColumns
 
-    override def appendColumns(columnDetails: Map[TableName, Seq[Column]]) = {
+    override protected[puredsl] def appendColumns(columnDetails: Map[TableName, Seq[Column]]) = {
       throw new IllegalStateException("ここにJoinDefinition派生クラス以外がくるはずはない")
     }
   }
@@ -64,23 +64,23 @@ package object puredsl {
       new Column(childSideColumn._1, childSideColumn._2), childSide)
   }
 
-  case class JoinDefinition(
+  final case class JoinDefinition(
     parentSideColumn: Column,
     groupBy: Boolean,
     childSideColumn: Column,
     childSide: Table
   ) extends JoinDefinitionBase {
-    override def copy(childSide: Table): JoinDefinitionBase =
+    override protected[puredsl] def copy(childSide: Table): JoinDefinitionBase =
       new JoinDefinition(this.parentSideColumn, this.groupBy, this.childSideColumn, childSide)
 
-    override def listUseColumns(parentTableName: TableName) = {
+    override protected[puredsl] def listUseColumns(parentTableName: TableName) = {
       Seq(
         (parentTableName, parentSideColumn),
         (childSide.name, childSideColumn)
       ) ++ childSide.listUseColumns
     }
 
-    override def appendColumns(columnDetails: Map[TableName, Seq[Column]]) =
+    override protected[puredsl] def appendColumns(columnDetails: Map[TableName, Seq[Column]]) =
       new JoinDefinitionForConstruct(parentSideColumn, groupBy, childSideColumn,
         childSide.appendColumns(columnDetails))
   }
@@ -88,7 +88,7 @@ package object puredsl {
 
 
   //------------------------------------//
-  // 以下JSON構造定義関連
+  // Js.*
   //------------------------------------//
 
   type SqlQuery = String
@@ -97,13 +97,13 @@ package object puredsl {
     /**
       * 構造定義オブジェクトの中からテーブル構造のみを取り出す(もちろんTreeになる)
       */
-    def constructTableTree: Seq[JoinDefinitionBase]
+    protected[puredsl] def constructTableTree: Seq[JoinDefinitionBase]
 
     /**
       * 使用するカラム一覧を出す。ただしJoinDefinitionで使われるカラムは除く
       * (そちらは統合したツリーに対して計算する方が楽であるため、別で計算する)
       */
-    def listUseColumns: Seq[(TableName, Column)]
+    protected[puredsl] def listUseColumns: Seq[(TableName, Column)]
 
     final def toSql: SqlQuery = {
       def enumerateUseColumnsByTable(jsValue: JsValue,
@@ -112,7 +112,7 @@ package object puredsl {
         columns.groupBy(_._1).mapValues(_.map(_._2))
       }
       def appendColumnInfoToTree(tableTree: Table,
-        columnDetails: Map[TableName, Seq[Column]]): TableForConstruct =
+        columnDetails: Map[TableName, Seq[Column]]): TableWithColumns =
         tableTree.appendColumns(columnDetails)
 
 
@@ -125,21 +125,21 @@ package object puredsl {
   }
 
   final case class JsString(tableName: String, columnName: String) extends JsValue {
-    def constructTableTree: Seq[JoinDefinitionBase] = Seq.empty
+    protected[puredsl] def constructTableTree: Seq[JoinDefinitionBase] = Seq.empty
 
-    def listUseColumns = Seq((tableName, new Column(columnName, "String")))
+    protected[puredsl] def listUseColumns = Seq((tableName, new Column(columnName, "String")))
   }
 
   final case class JsInt(tableName: String, columnName: String) extends JsValue {
-    def constructTableTree: Seq[JoinDefinitionBase] = Seq.empty
+    protected[puredsl] def constructTableTree: Seq[JoinDefinitionBase] = Seq.empty
 
-    def listUseColumns = Seq((tableName, new Column(columnName, "Int")))
+    protected[puredsl] def listUseColumns = Seq((tableName, new Column(columnName, "Int")))
   }
 
   final case class JsObject(
     jdo: Option[JoinDefinitionBase],
     properties: Map[String, JsValue]) extends JsValue {
-    def constructTableTree: Seq[JoinDefinitionBase] = jdo match {
+    protected[puredsl] def constructTableTree: Seq[JoinDefinitionBase] = jdo match {
       case Some(jd) =>
         val newJds = properties.values.flatMap(_.constructTableTree).toSeq ++ jd.childSide.joinDefinitions
         Seq(jd.copy(jd.childSide.update(newJds)))
@@ -147,11 +147,11 @@ package object puredsl {
         properties.values.flatMap(_.constructTableTree).toSeq
     }
 
-    def listUseColumns = properties.values.flatMap(_.listUseColumns).toSeq
+    protected[puredsl] def listUseColumns = properties.values.flatMap(_.listUseColumns).toSeq
   }
 
   final case class JsArray(jdo: Option[JoinDefinitionBase], elem: JsValue) extends JsValue {
-    def constructTableTree: Seq[JoinDefinitionBase] = jdo match {
+    protected[puredsl] def constructTableTree: Seq[JoinDefinitionBase] = jdo match {
       case Some(jd) =>
         val newJds = elem.constructTableTree ++ jd.childSide.joinDefinitions
         Seq(jd.copy(new Table(jd.childSide.name, newJds: _*)))
@@ -159,7 +159,7 @@ package object puredsl {
         elem.constructTableTree
     }
 
-    def listUseColumns = elem.listUseColumns
+    protected[puredsl] def listUseColumns = elem.listUseColumns
   }
 
 
@@ -168,6 +168,12 @@ package object puredsl {
   //------------------------------------//
   // 以下private
   //------------------------------------//
+
+  private[puredsl] case class TableNameAndColumn(val tableName: TableName, column: Column) {
+    def this(table: TableWithColumns, column: Column) = this(table.name, column)
+
+    val toSql = toFullColumnPath(tableName, column.name)
+  }
 
   private def toFullColumnPath(tableName: TableName, columnName: ColumnName) =
     tableName + "." + columnName
@@ -178,7 +184,7 @@ package object puredsl {
       def getQuery: String = csqSet.map(_.toSql).mkString(", ")
     }
 
-    def ensureColumnInfoToAlias(table: TableForConstruct, column: Column) = {
+    def ensureColumnInfoToAlias(table: TableWithColumns, column: Column) = {
       val tnac = new TableNameAndColumn(table, column)
       new ColumnSelectExpr(tnac.toSql, s"${table.name}__${column.name}__${column.scalaTypeName}",
         tnac)
@@ -206,17 +212,15 @@ package object puredsl {
     )
   }
 
-  private[puredsl] class TableForConstruct(
-    val name: TableName,
-    joinDefinitions: Seq[JoinDefinitionForConstruct],
-    columns: Seq[Column]) {
+  private[puredsl] class TableWithColumns(val name: TableName,
+    joinDefinitions: Seq[JoinDefinitionForConstruct], columns: Seq[Column]) {
 
     private[this] def columnSelectExprs =
       columns.map(ColumnSelectExpr.ensureColumnInfoToAlias(this, _)).toSet
 
     def toSql: SqlQuery = toSql(0)._1
 
-    private[puredsl] def toSql(nestLevel: Int): (SqlQuery, Set[ColumnSelectExpr]) = {
+    def toSql(nestLevel: Int): (SqlQuery, Set[ColumnSelectExpr]) = {
       val children = joinDefinitions.zipWithIndex.map { case (jd, i) => jd.toSql(this,
         s"_$i",
         nestLevel)
@@ -232,10 +236,10 @@ package object puredsl {
     parentSideColumn: Column,
     groupBy: Boolean,
     childSideColumn: Column,
-    childSide: TableForConstruct
+    childSide: TableWithColumns
   ) {
 
-    private[this] def groupedBy(childTable: TableForConstruct, newTableName: String) =
+    private[this] def groupedBy(childTable: TableWithColumns, newTableName: String) =
       if (groupBy) {
         val newColumnSelectExpr = ColumnSelectExpr.
           ensureColumnInfoToAlias(childTable, childSideColumn).updateTableName(newTableName)
@@ -243,8 +247,8 @@ package object puredsl {
       } else
         ""
 
-    private[this] def onPart(parentTable: TableForConstruct,
-      childTable: TableForConstruct,
+    private[this] def onPart(parentTable: TableWithColumns,
+      childTable: TableWithColumns,
       newChildTableName: TableName) = {
       val newChildColumnName =
         ColumnSelectExpr.ensureColumnInfoToAlias(childTable, childSideColumn).aliasName
@@ -253,7 +257,7 @@ package object puredsl {
       }"
     }
 
-    private[puredsl] def toSql(parentTable: TableForConstruct,
+    def toSql(parentTable: TableWithColumns,
       newChildTableName: String,
       nestLevel: Int):
     (SqlQuery, Set[ColumnSelectExpr]) = {
