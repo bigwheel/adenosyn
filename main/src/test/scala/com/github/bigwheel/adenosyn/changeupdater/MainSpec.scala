@@ -87,8 +87,7 @@ class MainSpec extends FunSpec with Matchers with BeforeAndAfter with BeforeAndA
           "kana" -> JsString("artist_kana", "kana")
         )
       )
-      val subject = new Subject(sqlutil.jdbcUrlForTest("observee"), sqlutil.jdbcUrlForTest("record"), "adenosyn", "yb",
-        elasticsearchUrl, Seq((structure, IndexAndType("index1", "type1"))))
+      val subject = new Subject(elasticsearchUrl, Seq((structure, IndexAndType("index1", "type1"))))
       subject.buildAll
       client.execute {
         flush index "index1"
@@ -100,18 +99,22 @@ class MainSpec extends FunSpec with Matchers with BeforeAndAfter with BeforeAndA
     }
   }
 
-  class Subject(observeeDbUrl: JdbcUrl, recordDbUrl: JdbcUrl, user: String, password: String,
-    elasticsearchClientUri: ElasticsearchClientUri, mappings: Seq[(JsValue, IndexAndType)]) {
+  class Subject(elasticsearchClientUri: ElasticsearchClientUri,
+    mappings: Seq[(JsValue, IndexAndType)]) {
+    private[this] val url = sqlutil.url()
+    private[this] val username = "adenosyn"
+    private[this] val password = "yb"
 
-    val cr = new ChangeRecorder(observeeDbUrl, recordDbUrl, user, password)
+    val cr = new ChangeRecorder(url, "observee", "record", username, password)
 
     def buildAll() = {
       val client = ElasticClient.transport(Settings.settingsBuilder.put("cluster_name",
         "elasticsearch").build(), elasticsearchUrl)
 
-      val pool = Commons2ConnectionPoolFactory(observeeDbUrl.plainUrl, user, password)
-      scalikejdbc.using(DB(pool.borrow)) { observeeDb =>
-        observeeDb.autoCommit { implicit session =>
+      val pool = Commons2ConnectionPoolFactory(url, username, password)
+      scalikejdbc.using(DB(pool.borrow)) { db =>
+        db.conn.setCatalog("observee")
+        db.autoCommit { implicit session =>
           val a = new Assembler
           val json = a.AssembleAll(mappings.head._1).head
           val noIdJson = json.hcursor.downField("_id").delete.undo.get

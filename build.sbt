@@ -42,7 +42,11 @@ lazy val changerecorder = project.
   dependsOn(common % "test->test;compile->compile").
   settings(baseSettings).settings(
   name := "changerecorder",
-  libraryDependencies ++= scalikejdbcLibs ++ scalatestLibs
+  resolvers += "bmjames Bintray Repo" at "https://dl.bintray.com/bmjames/maven",
+  libraryDependencies ++= scalikejdbcLibs ++ scalatestLibs ++ Seq(
+    "net.bmjames" %% "scala-optparse-applicative" % "0.7",
+    "org.scalaz"  %% "scalaz-core"                % "7.2.7"
+  )
 )
 
 lazy val recordstojson = project.
@@ -52,8 +56,8 @@ lazy val recordstojson = project.
     name := "dsl",
     libraryDependencies ++= scalikejdbcLibs ++ scalatestLibs ++ Seq(
       // @formatter:off
-      "org.scalaz"             %% "scalaz-core"          % "7.1.1",
-      "io.argonaut"            %% "argonaut"             % "6.1"
+      "org.scalaz"             %% "scalaz-core"          % "7.2.7",
+      "io.argonaut"            %% "argonaut"             % "6.2"
       // @formatter:on
     )
   )
@@ -67,8 +71,8 @@ lazy val main = project.
     name := "adenosyn",
     libraryDependencies ++= scalikejdbcLibs ++ scalatestLibs ++ Seq(
       // @formatter:off
-      "org.scalaz"             %% "scalaz-core"          % "7.1.1",
-      "io.argonaut"            %% "argonaut"             % "6.1",
+      "org.scalaz"             %% "scalaz-core"          % "7.2.7",
+      "io.argonaut"            %% "argonaut"             % "6.2",
       "com.sksamuel.elastic4s" %% "elastic4s-core"       % "2.4.0"
       // @formatter:on
     )

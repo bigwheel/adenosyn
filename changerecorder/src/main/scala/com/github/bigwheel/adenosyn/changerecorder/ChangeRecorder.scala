@@ -1,26 +1,24 @@
 package com.github.bigwheel.adenosyn.changerecorder
 
-import com.github.bigwheel.adenosyn.JdbcUrl
 import scalikejdbc._
 
 class ChangeRecorder private(observeeDbName: String, recordDbName: String,
-  observeePool: ConnectionPool, recordPool: ConnectionPool) {
-  def this(observeeDbUrl: JdbcUrl, recordDbUrl: JdbcUrl, user: String, password: String) = this(
-    observeeDbUrl.dbName, recordDbUrl.dbName,
-    Commons2ConnectionPoolFactory(observeeDbUrl.plainUrl, user, password),
-    Commons2ConnectionPoolFactory(recordDbUrl.plainUrl, user, password)
+  connectionPool: ConnectionPool) {
+
+  def this(jdbcUrl: String, observeeDbName: String, recordDbName: String, username: String,
+    password: String) = this(observeeDbName, recordDbName,
+    Commons2ConnectionPoolFactory(jdbcUrl, username, password)
   )
 
-  override def finalize(): Unit = {
-    observeePool.close
-    recordPool.close
-  }
+  override def finalize(): Unit = connectionPool.close
 
   def setUp() = {
-    val tableNameAndPrimaryColumnsList = using(DB(observeePool.borrow)) { observeeDb =>
-      observeeDb.autoClose(false)
-      for (tableName <- observeeDb.getTableNames())
-        yield (tableName, observeeDb.getTable(tableName).get.columns.filter(_.isPrimaryKey))
+    val tableNameAndPrimaryColumnsList = using(DB(connectionPool.borrow)) { db =>
+      db.autoClose(false)
+      // http://stackoverflow.com/a/13433382/4006322
+      db.conn.setCatalog(observeeDbName)
+      for (tableName <- db.getTableNames())
+        yield (tableName, db.getTable(tableName).get.columns.filter(_.isPrimaryKey))
     }
 
     val queries = tableNameAndPrimaryColumnsList.map { case (tableName, primaryColumns) =>
@@ -28,7 +26,8 @@ class ChangeRecorder private(observeeDbName: String, recordDbName: String,
       val primaryColumnNames = primaryColumnNameList.mkString(", ")
 
       val queryForRecord =
-        s"CREATE TABLE IF NOT EXISTS $tableName (PRIMARY KEY($primaryColumnNames)) AS " +
+        s"CREATE TABLE IF NOT EXISTS $recordDbName.$tableName " +
+          s"(PRIMARY KEY($primaryColumnNames)) AS " +
           s"SELECT $primaryColumnNames FROM $observeeDbName.$tableName WHERE FALSE"
 
       // OLD.とNEW.はtrigger文固有のキーワード
@@ -57,14 +56,14 @@ class ChangeRecorder private(observeeDbName: String, recordDbName: String,
     val queriesForObservee = temp._1.flatten
     val queriesForRerord = temp._2
 
-    using(DB(observeePool.borrow)) { observeeDb =>
-      observeeDb.autoCommit { implicit session =>
+    using(DB(connectionPool.borrow)) { db =>
+      db.autoCommit { implicit session =>
         queriesForObservee.foreach(SQL(_).execute.apply())
       }
     }
 
-    using(DB(recordPool.borrow)) { recordDb =>
-      recordDb.autoCommit { implicit session =>
+    using(DB(connectionPool.borrow)) { db =>
+      db.autoCommit { implicit session =>
         queriesForRerord.foreach(SQL(_).execute.apply())
       }
     }
@@ -72,8 +71,8 @@ class ChangeRecorder private(observeeDbName: String, recordDbName: String,
   }
 
   def tearDown() = {
-    val queries = using(DB(observeePool.borrow)) { observeeDb =>
-      observeeDb.readOnly { implicit session =>
+    val queries = using(DB(connectionPool.borrow)) { db =>
+      db.readOnly { implicit session =>
         val q = "SELECT TRIGGER_NAME FROM information_schema.triggers " +
           s"WHERE TRIGGER_SCHEMA = '$observeeDbName'"
         val triggerNames = SQL(q).map(_.string(1)).list.apply()
@@ -82,8 +81,8 @@ class ChangeRecorder private(observeeDbName: String, recordDbName: String,
       }
     }
 
-    using(DB(observeePool.borrow)) { observeeDb =>
-      observeeDb.autoCommit { implicit session =>
+    using(DB(connectionPool.borrow)) { db =>
+      db.autoCommit { implicit session =>
         queries.foreach(SQL(_).execute.apply())
       }
     }

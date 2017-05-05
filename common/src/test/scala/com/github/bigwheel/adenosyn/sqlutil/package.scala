@@ -5,7 +5,7 @@ import scalikejdbc._
 
 package object sqlutil {
 
-  def url(dbName: String = "") = s"jdbc:mysql://127.0.0.1/$dbName?useSSL=false"
+  def  url(dbName: String = "") = s"jdbc:mysql://127.0.0.1/$dbName?useSSL=false"
 
   def jdbcUrlForTest(dbName: String) = new JdbcUrl(sqlutil.url(dbName), dbName)
 
