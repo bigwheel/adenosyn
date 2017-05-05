@@ -61,8 +61,8 @@ class ChangeRecorderSpec extends FreeSpec with Matchers with BeforeAndAfterAll {
     }
   }
 
-  private[this] def subject = new ChangeRecorder(jdbcUrlForTest(observeeDbName),
-    jdbcUrlForTest(recordDbName), userName, password)
+  private[this] def subject = new ChangeRecorder(url(),observeeDbName, recordDbName,
+    userName, password)
 
   ".setUp" - {
     "database permission aspect:" - {
