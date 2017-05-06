@@ -1,6 +1,5 @@
 package com.github.bigwheel.adenosyn.changeupdater
 
-import com.github.bigwheel.adenosyn.JdbcUrl
 import com.github.bigwheel.adenosyn.changerecorder.ChangeRecorder
 import com.github.bigwheel.adenosyn.recordstojson.Assembler
 import com.github.bigwheel.adenosyn.recordstojson.dsl._
