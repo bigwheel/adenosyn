@@ -10,14 +10,18 @@ class MainSpec extends FreeSpec with Matchers with ExitStatusSpec {
     intercept[ExitException] { Main.main(args) }.status shouldNot be(0)
   }
 
-  "with '--help', exit status is 0" in {
-    val args = "--help".split(" ")
-    intercept[ExitException] { Main.main(args) }.status should be(0)
+  {
+    val arg = "--help"
+    s"with '$arg', exit status is not 0" in {
+      intercept[ExitException] { Main.main(arg.split(" ")) }.status should be(0)
+    }
   }
 
-  "with 'validate', exit status is 0" in {
-    val args = "validate".split(" ")
-    intercept[ExitException] { Main.main(args) }.status should be(0)
+  {
+    val arg = "validate"
+    s"with '$arg', exit status is not 0" in {
+      intercept[ExitException] { Main.main(arg.split(" ")) }.status shouldNot be(0)
+    }
   }
 
   {
