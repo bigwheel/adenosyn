@@ -47,7 +47,7 @@ object Main {
     val opts = info(parser <*> helper,
       header("changerecorder - which records row changes in another table"))
     execParser(args, "changerecorder.jar", opts) match {
-      case Setup(host, port, username, password, dryRun) =>
+      case Validate(host, port, username, password, dryRun) =>
         println("not implemented yet")
         sys.exit(0)
       case Setup(host, port, username, password, dryRun) =>
