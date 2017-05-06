@@ -7,8 +7,6 @@ package object sqlutil {
 
   def  url(dbName: String = "") = s"jdbc:mysql://127.0.0.1/$dbName?useSSL=false"
 
-  def jdbcUrlForTest(dbName: String) = new JdbcUrl(sqlutil.url(dbName), dbName)
-
   implicit class RichString(q: String)(implicit session: DBSession) {
     def query(): Unit = SQL(q).execute.apply()
   }
