@@ -2,6 +2,8 @@ package com.github.bigwheel.adenosyn.changerecorder
 
 import scalikejdbc._
 
+case class SetupQueries(forObservee: List[String], forRecord: List[String])
+
 class ChangeRecorder private(observeeDbName: String, recordDbName: String,
   connectionPool: ConnectionPool) {
 
@@ -12,7 +14,7 @@ class ChangeRecorder private(observeeDbName: String, recordDbName: String,
 
   override def finalize(): Unit = connectionPool.close
 
-  def setUp() = {
+  lazy val setUpQueries: SetupQueries = {
     val tableNameAndPrimaryColumnsList = using(DB(connectionPool.borrow)) { db =>
       db.autoClose(false)
       // http://stackoverflow.com/a/13433382/4006322
@@ -24,11 +26,6 @@ class ChangeRecorder private(observeeDbName: String, recordDbName: String,
     val queries = tableNameAndPrimaryColumnsList.map { case (tableName, primaryColumns) =>
       val primaryColumnNameList = primaryColumns.map(_.name)
       val primaryColumnNames = primaryColumnNameList.mkString(", ")
-
-      val queryForRecord =
-        s"CREATE TABLE IF NOT EXISTS $recordDbName.$tableName " +
-          s"(PRIMARY KEY($primaryColumnNames)) AS " +
-          s"SELECT $primaryColumnNames FROM $observeeDbName.$tableName WHERE FALSE"
 
       // OLD.とNEW.はtrigger文固有のキーワード
       // https://dev.mysql.com/doc/refman/5.6/ja/trigger-syntax.html
@@ -49,42 +46,52 @@ class ChangeRecorder private(observeeDbName: String, recordDbName: String,
            |VALUES(${primaryColumnNameList.map("OLD." + _).mkString(", ")})"""
       ).map(_.stripMargin.replace('\n', ' '))
 
+      val queryForRecord =
+        s"CREATE TABLE IF NOT EXISTS $recordDbName.$tableName " +
+          s"(PRIMARY KEY($primaryColumnNames)) AS " +
+          s"SELECT $primaryColumnNames FROM $observeeDbName.$tableName WHERE FALSE"
+
       (queriesForObservee, queryForRecord)
     }
 
     val temp = queries.unzip
     val queriesForObservee = temp._1.flatten
-    val queriesForRerord = temp._2
+    val queriesForRecord = temp._2
 
+    SetupQueries(queriesForObservee, queriesForRecord)
+  }
+
+  def setUp() = {
     using(DB(connectionPool.borrow)) { db =>
+      db.conn.setCatalog(observeeDbName)
       db.autoCommit { implicit session =>
-        queriesForObservee.foreach(SQL(_).execute.apply())
+        setUpQueries.forObservee.foreach(SQL(_).execute.apply())
       }
     }
 
     using(DB(connectionPool.borrow)) { db =>
+      db.conn.setCatalog(recordDbName)
       db.autoCommit { implicit session =>
-        queriesForRerord.foreach(SQL(_).execute.apply())
+        setUpQueries.forRecord.foreach(SQL(_).execute.apply())
       }
     }
 
   }
 
-  def tearDown() = {
-    val queries = using(DB(connectionPool.borrow)) { db =>
-      db.readOnly { implicit session =>
-        val q = "SELECT TRIGGER_NAME FROM information_schema.triggers " +
-          s"WHERE TRIGGER_SCHEMA = '$observeeDbName'"
-        val triggerNames = SQL(q).map(_.string(1)).list.apply()
-        for (triggerName <- triggerNames)
-          yield s"DROP TRIGGER $observeeDbName.$triggerName"
-      }
+  lazy val tearDownQueries = using(DB(connectionPool.borrow)) { db =>
+    db.readOnly { implicit session =>
+      val q = "SELECT TRIGGER_NAME FROM information_schema.triggers " +
+        s"WHERE TRIGGER_SCHEMA = '$observeeDbName'"
+      val triggerNames = SQL(q).map(_.string(1)).list.apply()
+      for (triggerName <- triggerNames)
+        yield s"DROP TRIGGER $observeeDbName.$triggerName"
     }
+  }
 
-    using(DB(connectionPool.borrow)) { db =>
-      db.autoCommit { implicit session =>
-        queries.foreach(SQL(_).execute.apply())
-      }
+  def tearDown() = using(DB(connectionPool.borrow)) { db =>
+    db.conn.setCatalog(observeeDbName)
+    db.autoCommit { implicit session =>
+      tearDownQueries.foreach(SQL(_).execute.apply())
     }
   }
 

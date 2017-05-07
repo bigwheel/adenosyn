@@ -37,9 +37,17 @@ object Main {
       case Validate(url, observee, record, username, password, dryRun) =>
         println("not implemented yet")
       case Setup(url, observee, record, username, password, dryRun) =>
-        new ChangeRecorder(url, observee, record, username, password).setUp()
+        val cr = new ChangeRecorder(url, observee, record, username, password)
+        if (dryRun)
+          println((cr.setUpQueries.forObservee ++ cr.setUpQueries.forRecord).mkString("\n"))
+        else
+          cr.setUp()
       case Teardown(url, observee, record, username, password, dryRun) =>
-        println("teardown")
+        val cr = new ChangeRecorder(url, observee, record, username, password)
+        if (dryRun)
+          println(cr.tearDownQueries.mkString("\n"))
+        else
+          cr.tearDown()
     }
     sys.exit(0)
   }

@@ -1,21 +1,21 @@
 package com.github.bigwheel.adenosyn.changerecorder
 
 import com.github.bigwheel.adenosyn.sqlutil
-import java.io.File
+import java.io.FileOutputStream
 import java.io.PrintStream
 import org.scalatest.FreeSpec
 import org.scalatest.Matchers
 
 class MainSpec extends FreeSpec with Matchers with ExitStatusSpecHelper with DatabaseSpecHelper {
 
-  def outputToDevNull[T](thunk: =>T): T = {
-    val devNull1 = new PrintStream(new File("/dev/null"))
-    val devNull2 = new PrintStream(new File("/dev/null"))
+  def outputToLogFile[T](thunk: =>T): T = {
+    val out = new PrintStream(new FileOutputStream("logs/test_out.log", true))
+    val err = new PrintStream(new FileOutputStream("logs/test_err.log", true))
     try {
-      Console.withOut(devNull1) { Console.withErr(devNull2) { thunk } }
+      Console.withOut(out) { Console.withErr(err) { thunk } }
     } finally {
-      devNull1.close
-      devNull2.close
+      out.close
+      err.close
     }
   }
 
@@ -30,11 +30,11 @@ class MainSpec extends FreeSpec with Matchers with ExitStatusSpecHelper with Dat
     thunk
   } catch {
     case e: ExitException => e.status should be(0)
-    case e: Throwable => System.err.println(e.toString); fail(e)
+    case e: Throwable => e.printStackTrace(); fail(e)
   }
 
   "with no options, exit status is not 0" in {
-    outputToDevNull {
+    outputToLogFile {
       exceptionOrExit1 { Main.main(Array.empty[String]) }
     }
   }
@@ -52,8 +52,7 @@ class MainSpec extends FreeSpec with Matchers with ExitStatusSpecHelper with Dat
       arg => withTableUserAndDatabases { arg }),
     TestCase(s"setup ${sqlutil.url()} $observeeDbName $recordDbName $userName $password -d", true,
       arg => withTableUserAndDatabases { arg }),
-    TestCase(s"teardown ${sqlutil.url()} unkown_db1 unkown_db2 $userName $password", true),
-    TestCase(s"teardown ${sqlutil.url()} $observeeDbName unknown_db2 $userName $password", true),
+    TestCase(s"teardown ${sqlutil.url()} unkown_db1 unkown_db2 $userName $password", false),
     TestCase(s"teardown ${sqlutil.url()} $observeeDbName $recordDbName $userName $password", true,
       arg => withTableUserAndDatabases { arg }),
     TestCase(s"teardown ${sqlutil.url()} $observeeDbName $recordDbName $userName $password -d",
@@ -62,7 +61,7 @@ class MainSpec extends FreeSpec with Matchers with ExitStatusSpecHelper with Dat
   )
   for (tc <- testCases)
     s"with '${tc.arg}', ${if (tc.isSuccess) "no " else "" }error happens" in {
-      outputToDevNull {
+      outputToLogFile {
         val checker = if (tc.isSuccess)
           noExceptionOrExit0 _
         else
