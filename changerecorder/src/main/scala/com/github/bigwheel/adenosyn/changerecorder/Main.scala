@@ -6,36 +6,22 @@ import scalaz.syntax.applicativePlus._
 object Main {
 
   sealed trait Mode
+  val dbOptionParser: ((String, Int, String, String, Boolean) => Mode) => Parser[Mode] = ^^^^(
+    strArgument(metavar("HOST")),
+    intArgument(metavar("PORT")),
+    strArgument(metavar("USERNAME")),
+    strArgument(metavar("PASSWORD")),
+    switch(long("dry-run"), help("only show sql queries"))
+  ) _
   final case class Setup(host: String, port: Int, username: String, password: String,
     dryRun: Boolean) extends Mode
-  val setup: Parser[Mode] =
-    ^^^^(
-      strArgument(metavar("HOST")),
-      intArgument(metavar("PORT")),
-      strArgument(metavar("USERNAME")),
-      strArgument(metavar("PASSWORD")),
-      switch(long("dry-run"), help("only show sql queries"))
-    )(Setup)
+  val setup: Parser[Mode] = dbOptionParser(Setup)
   final case class Teardown(host: String, port: Int, username: String, password: String,
     dryRun: Boolean) extends Mode
-  val teardown: Parser[Mode] =
-    ^^^^(
-      strArgument(metavar("HOST")),
-      intArgument(metavar("PORT")),
-      strArgument(metavar("USERNAME")),
-      strArgument(metavar("PASSWORD")),
-      switch(long("dry-run"), help("only show sql queries"))
-    )(Teardown)
+  val teardown: Parser[Mode] = dbOptionParser(Teardown)
   final case class Validate(host: String, port: Int, username: String, password: String,
     dryRun: Boolean) extends Mode
-  val validate: Parser[Mode] =
-    ^^^^(
-      strArgument(metavar("HOST")),
-      intArgument(metavar("PORT")),
-      strArgument(metavar("USERNAME")),
-      strArgument(metavar("PASSWORD")),
-      switch(long("dry-run"), help("only show sql queries"))
-    )(Validate)
+  val validate: Parser[Mode] = dbOptionParser(Validate)
 
   val parser: Parser[Mode] = subparser(
     command("setup", info(setup, progDesc("create triggers and tables to record row changes"))),
