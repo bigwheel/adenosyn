@@ -20,9 +20,14 @@ trait ExitStatusSpec extends BeforeAndAfterAll { this: Suite =>
     }
   }
 
-  override protected def beforeAll() =
+  override protected def beforeAll() = {
+    super.beforeAll()
     System.setSecurityManager(new NoExitSecurityManager())
+  }
 
-  override protected def afterAll() = System.setSecurityManager(null)
+  override protected def afterAll() = {
+    super.afterAll()
+    System.setSecurityManager(null)
+  }
 
 }
