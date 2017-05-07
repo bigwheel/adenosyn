@@ -30,68 +30,46 @@ class MainSpec extends FreeSpec with Matchers with ExitStatusSpecHelper with Dat
     thunk
   } catch {
     case e: ExitException => e.status should be(0)
-    case _: Throwable => fail()
+    case e: Throwable => System.err.println(e.toString); fail(e)
   }
 
   "with no options, exit status is not 0" in {
-    val args = Array.empty[String]
     outputToDevNull {
-      exceptionOrExit1 { Main.main(args) }
+      exceptionOrExit1 { Main.main(Array.empty[String]) }
     }
   }
 
-  {
-    val arg = "--help"
-    s"with '$arg', exit status is not 0" in {
-      outputToDevNull {
-        noExceptionOrExit0 { Main.main(arg.split(" ")) }
-      }
-    }
-  }
+  private[this] sealed case class TestCase(arg: String, isSuccess: Boolean,
+    wrapper: (=> Unit) => Unit = arg => arg)
 
-  {
-    val arg = "validate"
-    s"with '$arg', exit status is not 0" in {
+  private[this] val testCases = Seq(
+    TestCase("--help", true),
+    TestCase("validate", false),
+    TestCase("setup", false),
+    TestCase("teardown", false),
+    TestCase(s"setup ${sqlutil.url()} unkown_db1 unkown_db2 $userName $password", false),
+    TestCase(s"setup ${sqlutil.url()} $observeeDbName $recordDbName $userName $password", true,
+      arg => withTableUserAndDatabases { arg }),
+    TestCase(s"setup ${sqlutil.url()} $observeeDbName $recordDbName $userName $password -d", true,
+      arg => withTableUserAndDatabases { arg }),
+    TestCase(s"teardown ${sqlutil.url()} unkown_db1 unkown_db2 $userName $password", true),
+    TestCase(s"teardown ${sqlutil.url()} $observeeDbName unknown_db2 $userName $password", true),
+    TestCase(s"teardown ${sqlutil.url()} $observeeDbName $recordDbName $userName $password", true,
+      arg => withTableUserAndDatabases { arg }),
+    TestCase(s"teardown ${sqlutil.url()} $observeeDbName $recordDbName $userName $password -d",
+      true, arg => withTableUserAndDatabases { arg }),
+    TestCase(s"validate ${sqlutil.url()} $observeeDbName $recordDbName $userName $password", true)
+  )
+  for (tc <- testCases)
+    s"with '${tc.arg}', ${if (tc.isSuccess) "no " else "" }error happens" in {
       outputToDevNull {
-        exceptionOrExit1 { Main.main(arg.split(" ")) }
-      }
-    }
-  }
+        val checker = if (tc.isSuccess)
+          noExceptionOrExit0 _
+        else
+          exceptionOrExit1 _
 
-  {
-    val arg = "setup"
-    s"with '$arg', exit status is not 0" in {
-      outputToDevNull {
-        exceptionOrExit1 { Main.main(arg.split(" ")) }
+        checker { tc.wrapper { Main.main(tc.arg.split(" ")) } }
       }
     }
-  }
-
-  {
-    val arg = "teardown"
-    s"with '$arg', exit status is not 0" in {
-      outputToDevNull {
-        exceptionOrExit1 { Main.main(arg.split(" ")) }
-      }
-    }
-  }
-
-  {
-    val arg = s"setup ${sqlutil.url()} not_existing_db1 not_existing_db1 $userName $password"
-    s"with '$arg', exit status is not 0" in {
-      outputToDevNull {
-        exceptionOrExit1 { Main.main(arg.split(" ")) }
-      }
-    }
-  }
-
-  {
-    val arg = s"setup ${sqlutil.url()} $observeeDbName $recordDbName $userName $password"
-    s"with '$arg', exit status is 0" in {
-      outputToDevNull {
-        noExceptionOrExit0 { withTableUserAndDatabases { Main.main(arg.split(" ")) } }
-      }
-    }
-  }
 
 }
