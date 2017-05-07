@@ -8,7 +8,7 @@ import org.scalatest.Matchers
 
 class MainSpec extends FreeSpec with Matchers with ExitStatusSpecHelper with DatabaseSpecHelper {
 
-  def outToDevNull[T](thunk: =>T): T = {
+  def outputToDevNull[T](thunk: =>T): T = {
     val devNull1 = new PrintStream(new File("/dev/null"))
     val devNull2 = new PrintStream(new File("/dev/null"))
     try {
@@ -21,7 +21,7 @@ class MainSpec extends FreeSpec with Matchers with ExitStatusSpecHelper with Dat
 
   "with no options, exit status is not 0" in {
     val args = Array.empty[String]
-    outToDevNull {
+    outputToDevNull {
       intercept[ExitException] { Main.main(args) }.status shouldNot be(0)
     }
   }
@@ -29,7 +29,7 @@ class MainSpec extends FreeSpec with Matchers with ExitStatusSpecHelper with Dat
   {
     val arg = "--help"
     s"with '$arg', exit status is not 0" in {
-      outToDevNull {
+      outputToDevNull {
         intercept[ExitException] { Main.main(arg.split(" ")) }.status should be(0)
       }
     }
@@ -38,7 +38,7 @@ class MainSpec extends FreeSpec with Matchers with ExitStatusSpecHelper with Dat
   {
     val arg = "validate"
     s"with '$arg', exit status is not 0" in {
-      outToDevNull {
+      outputToDevNull {
         intercept[ExitException] { Main.main(arg.split(" ")) }.status shouldNot be(0)
       }
     }
@@ -47,7 +47,7 @@ class MainSpec extends FreeSpec with Matchers with ExitStatusSpecHelper with Dat
   {
     val arg = "setup"
     s"with '$arg', exit status is not 0" in {
-      outToDevNull {
+      outputToDevNull {
         intercept[ExitException] { Main.main(arg.split(" ")) }.status shouldNot be(0)
       }
     }
@@ -56,7 +56,7 @@ class MainSpec extends FreeSpec with Matchers with ExitStatusSpecHelper with Dat
   {
     val arg = "teardown"
     s"with '$arg', exit status is not 0" in {
-      outToDevNull {
+      outputToDevNull {
         intercept[ExitException] { Main.main(arg.split(" ")) }.status shouldNot be(0)
       }
     }
@@ -65,7 +65,7 @@ class MainSpec extends FreeSpec with Matchers with ExitStatusSpecHelper with Dat
   {
     val arg = s"setup ${sqlutil.url()} not_existing_db1 not_existing_db1 $userName $password"
     s"with '$arg', exit status is not 0" in {
-      outToDevNull {
+      outputToDevNull {
         try {
           Main.main(arg.split(" "))
         } catch {
@@ -79,7 +79,7 @@ class MainSpec extends FreeSpec with Matchers with ExitStatusSpecHelper with Dat
   {
     val arg = s"setup ${sqlutil.url()} $observeeDbName $recordDbName $userName $password"
     s"with '$arg', exit status is 0" in {
-      outToDevNull {
+      outputToDevNull {
         try {
           withTableUserAndDatabases { Main.main(arg.split(" ")) }
         } catch {
