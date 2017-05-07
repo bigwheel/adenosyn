@@ -34,11 +34,11 @@ object Main {
     val opts = info(parser <*> helper,
       header("changerecorder - which records row changes in another table"))
     execParser(args, "changerecorder.jar", opts) match {
-      case Validate(_, _, _, _, _, _) =>
+      case Validate(url, observee, record, username, password, dryRun) =>
         println("not implemented yet")
-      case Setup(_, _, _, _, _, _) =>
-        println("setup")
-      case Teardown(_, _, _, _, _, _) =>
+      case Setup(url, observee, record, username, password, dryRun) =>
+        new ChangeRecorder(url, observee, record, username, password).setUp()
+      case Teardown(url, observee, record, username, password, dryRun) =>
         println("teardown")
     }
     sys.exit(0)

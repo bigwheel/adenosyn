@@ -63,19 +63,29 @@ class MainSpec extends FreeSpec with Matchers with ExitStatusSpecHelper with Dat
   }
 
   {
-    val arg = s"setup ${sqlutil.url()} not_existing_db1 not_existing_db1 root root"
+    val arg = s"setup ${sqlutil.url()} not_existing_db1 not_existing_db1 $userName $password"
     s"with '$arg', exit status is not 0" in {
       outToDevNull {
-        intercept[ExitException] { Main.main(arg.split(" ")) }.status shouldNot be(0)
+        try {
+          Main.main(arg.split(" "))
+        } catch {
+          case e: ExitException => e.status shouldNot be(0)
+          case _: Throwable =>
+        }
       }
     }
   }
 
   {
-    val arg = s"setup ${sqlutil.url()} $observeeDbName $recordDbName root root"
+    val arg = s"setup ${sqlutil.url()} $observeeDbName $recordDbName $userName $password"
     s"with '$arg', exit status is 0" in {
       outToDevNull {
-        intercept[ExitException] { Main.main(arg.split(" ")) }.status should be(0)
+        try {
+          withTableUserAndDatabases { Main.main(arg.split(" ")) }
+        } catch {
+          case e: ExitException => e.status should be(0)
+          case _: Throwable => fail()
+        }
       }
     }
   }
