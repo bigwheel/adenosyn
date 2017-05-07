@@ -1,5 +1,6 @@
 package com.github.bigwheel.adenosyn.changerecorder
 
+import com.github.bigwheel.adenosyn.sqlutil
 import java.io.File
 import java.io.PrintStream
 import org.scalatest.FreeSpec
@@ -62,8 +63,8 @@ class MainSpec extends FreeSpec with Matchers with ExitStatusSpecHelper with Dat
   }
 
   {
-    val arg = "setup localhost 3306 not_existing_db1 not_existing_db1"
-    s"with '$arg', exit status is 0" in {
+    val arg = s"setup ${sqlutil.url()} not_existing_db1 not_existing_db1 root root"
+    s"with '$arg', exit status is not 0" in {
       outToDevNull {
         intercept[ExitException] { Main.main(arg.split(" ")) }.status shouldNot be(0)
       }
@@ -71,7 +72,7 @@ class MainSpec extends FreeSpec with Matchers with ExitStatusSpecHelper with Dat
   }
 
   {
-    val arg = s"setup localhost 3306 $observeeDbName $recordDbName"
+    val arg = s"setup ${sqlutil.url()} $observeeDbName $recordDbName root root"
     s"with '$arg', exit status is 0" in {
       outToDevNull {
         intercept[ExitException] { Main.main(arg.split(" ")) }.status should be(0)
