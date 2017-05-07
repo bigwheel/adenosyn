@@ -49,14 +49,12 @@ object Main {
     execParser(args, "changerecorder.jar", opts) match {
       case Validate(host, port, username, password, dryRun) =>
         println("not implemented yet")
-        sys.exit(0)
       case Setup(host, port, username, password, dryRun) =>
         println("setup")
-        sys.exit(0)
       case Teardown(host, port, username, password, dryRun) =>
         println("teardown")
-        sys.exit(0)
     }
+    sys.exit(0)
   }
 
 }

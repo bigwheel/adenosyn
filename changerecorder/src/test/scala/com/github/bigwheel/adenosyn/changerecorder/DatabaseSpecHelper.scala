@@ -11,7 +11,12 @@ import scalikejdbc._
 
 trait DatabaseSpecHelper extends BeforeAndAfterAll { this: Suite =>
 
-  protected[this] val postfix = "398"
+  // http://qiita.com/suin/items/5a7a56afacc8a35abcb6
+  private[this] def md5(text: String): String = {
+    java.security.MessageDigest.getInstance("MD5").digest(text.getBytes).map("%02x".format(_)).mkString
+  }
+
+  protected[this] val postfix = md5(this.getClass().getCanonicalName()).take(8)
   protected[this] val observeeDbName = "observee" + postfix
   protected[this] val recordDbName = "record" + postfix
   protected[this] val userName = "changerecorder" + postfix

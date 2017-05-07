@@ -5,7 +5,7 @@ import java.io.PrintStream
 import org.scalatest.FreeSpec
 import org.scalatest.Matchers
 
-class MainSpec extends FreeSpec with Matchers with ExitStatusSpecHelper {
+class MainSpec extends FreeSpec with Matchers with ExitStatusSpecHelper with DatabaseSpecHelper {
 
   def outToDevNull[T](thunk: =>T): T = {
     val devNull1 = new PrintStream(new File("/dev/null"))
@@ -62,7 +62,16 @@ class MainSpec extends FreeSpec with Matchers with ExitStatusSpecHelper {
   }
 
   {
-    val arg = "setup abc 10 def ghi"
+    val arg = "setup localhost 3306 not_existing_db1 not_existing_db1"
+    s"with '$arg', exit status is 0" in {
+      outToDevNull {
+        intercept[ExitException] { Main.main(arg.split(" ")) }.status shouldNot be(0)
+      }
+    }
+  }
+
+  {
+    val arg = s"setup localhost 3306 $observeeDbName $recordDbName"
     s"with '$arg', exit status is 0" in {
       outToDevNull {
         intercept[ExitException] { Main.main(arg.split(" ")) }.status should be(0)
