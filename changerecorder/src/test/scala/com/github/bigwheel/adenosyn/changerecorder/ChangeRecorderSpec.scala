@@ -1,65 +1,12 @@
 package com.github.bigwheel.adenosyn.changerecorder
 
-import com.github.bigwheel.adenosyn.sqlutil
 import com.github.bigwheel.adenosyn.sqlutil._
-import org.scalatest.BeforeAndAfterAll
 import org.scalatest.FreeSpec
 import org.scalatest.Matchers
-import org.slf4j.LoggerFactory
-import scala.sys.process.Process
-import scala.sys.process.ProcessLogger
 import scalikejdbc._
 import scalikejdbc.metadata.Column
 
-class ChangeRecorderSpec extends FreeSpec with Matchers with BeforeAndAfterAll {
-
-  private[this] val postfix = "398"
-  private[this] val observeeDbName = "observee" + postfix
-  private[this] val recordDbName = "record" + postfix
-  private[this] val userName = "changerecorder" + postfix
-  private[this] val password = "cr" + postfix
-
-  override protected def beforeAll() = {
-    val l = LoggerFactory.getLogger(getClass)
-    Process("docker-compose up -d").!(ProcessLogger(l.debug, l.warn))
-
-    Class.forName("com.mysql.jdbc.Driver")
-    ConnectionPool.singleton(sqlutil.url(), "root", "root")
-    ConnectionPool.add('observee, sqlutil.url(observeeDbName), "root", "root")
-    ConnectionPool.add('record, sqlutil.url(recordDbName), "root", "root")
-  }
-
-  private[this] implicit val session = AutoSession
-
-  private[this] def withDatabases(test: => Any) {
-    sqlutil.executeStatements(
-      s"""DROP DATABASE IF EXISTS $observeeDbName;
-        |CREATE DATABASE $observeeDbName;
-        |DROP DATABASE IF EXISTS $recordDbName;
-        |CREATE DATABASE $recordDbName;
-        |DROP USER IF EXISTS '$userName'@'%';""".stripMargin
-    )
-    test
-  }
-
-  private[this] def withUserAndDatabases(test: => Any) {
-    withDatabases {
-      sqlutil.executeStatements(
-        s"""CREATE USER '$userName'@'%' IDENTIFIED BY '$password';
-          |GRANT ALL ON $observeeDbName.* TO '$userName'@'%';
-          |GRANT ALL ON $recordDbName.* TO '$userName'@'%';""".stripMargin
-      )
-      test
-    }
-  }
-
-  private[this] def withTableUserAndDatabases(test: => Any) {
-    withUserAndDatabases {
-      (s"CREATE TABLE $observeeDbName.table1(pr1 INTEGER not null," +
-        "pr2 VARCHAR(30) not null, col1 INTEGER, PRIMARY KEY(pr1, pr2))").query
-      test
-    }
-  }
+class ChangeRecorderSpec extends FreeSpec with Matchers with DatabaseSpecHelper {
 
   private[this] def subject = new ChangeRecorder(url(),observeeDbName, recordDbName,
     userName, password)
