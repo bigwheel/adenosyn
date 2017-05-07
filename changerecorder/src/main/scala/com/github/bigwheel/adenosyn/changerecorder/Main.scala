@@ -6,21 +6,22 @@ import scalaz.syntax.applicativePlus._
 object Main {
 
   sealed trait Mode
-  val dbOptionParser: ((String, Int, String, String, Boolean) => Mode) => Parser[Mode] = ^^^^(
-    strArgument(metavar("HOST")),
-    intArgument(metavar("PORT")),
-    strArgument(metavar("USERNAME")),
-    strArgument(metavar("PASSWORD")),
-    switch(long("dry-run"), help("only show sql queries"))
+  val dbOptionParser: ((String, String, String, String, String, Boolean) => Mode) => Parser[Mode] = ^^^^^( // unfortunately follow help texts for strArgument don't appear in any help text
+    strArgument(metavar("URL"), help("JDBC URL without specifying schema")),
+    strArgument(metavar("OBSERVEE"), help("observee database name")),
+    strArgument(metavar("RECORD"), help("record database name")),
+    strArgument(metavar("USERNAME"), help("username to connect databases")),
+    strArgument(metavar("PASSWORD"), help("password to connect databases")),
+    switch(long("dry-run"), short('d'), help("only show sql queries"))
   ) _
-  final case class Setup(host: String, port: Int, username: String, password: String,
-    dryRun: Boolean) extends Mode
+  final case class Setup(url: String, observee: String, record: String, username: String,
+    password: String, dryRun: Boolean) extends Mode
   val setup: Parser[Mode] = dbOptionParser(Setup)
-  final case class Teardown(host: String, port: Int, username: String, password: String,
-    dryRun: Boolean) extends Mode
+  final case class Teardown(url: String, observee: String, record: String, username: String,
+    password: String, dryRun: Boolean) extends Mode
   val teardown: Parser[Mode] = dbOptionParser(Teardown)
-  final case class Validate(host: String, port: Int, username: String, password: String,
-    dryRun: Boolean) extends Mode
+  final case class Validate(url: String, observee: String, record: String, username: String,
+    password: String, dryRun: Boolean) extends Mode
   val validate: Parser[Mode] = dbOptionParser(Validate)
 
   val parser: Parser[Mode] = subparser(
@@ -33,11 +34,11 @@ object Main {
     val opts = info(parser <*> helper,
       header("changerecorder - which records row changes in another table"))
     execParser(args, "changerecorder.jar", opts) match {
-      case Validate(host, port, username, password, dryRun) =>
+      case Validate(_, _, _, _, _, _) =>
         println("not implemented yet")
-      case Setup(host, port, username, password, dryRun) =>
+      case Setup(_, _, _, _, _, _) =>
         println("setup")
-      case Teardown(host, port, username, password, dryRun) =>
+      case Teardown(_, _, _, _, _, _) =>
         println("teardown")
     }
     sys.exit(0)
