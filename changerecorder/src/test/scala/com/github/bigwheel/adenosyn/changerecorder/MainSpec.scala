@@ -5,7 +5,7 @@ import java.io.PrintStream
 import org.scalatest.FreeSpec
 import org.scalatest.Matchers
 
-class MainSpec extends FreeSpec with Matchers with ExitStatusSpec {
+class MainSpec extends FreeSpec with Matchers with ExitStatusSpecHelper {
 
   def outToDevNull[T](thunk: =>T): T = {
     val devNull1 = new PrintStream(new File("/dev/null"))
