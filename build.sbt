@@ -6,7 +6,8 @@ lazy val baseSettings = Seq(
   organization := "com.github.bigwheel",
   version := "1.0.0",
   scalaVersion := "2.11.8",
-  scalacOptions ++= Seq("-unchecked", "-deprecation", "-feature")
+  scalacOptions ++= Seq("-unchecked", "-deprecation", "-feature"),
+  test in assembly := {}
 )
 
 lazy val scalatestLibs = Seq(
