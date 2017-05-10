@@ -5,6 +5,7 @@ elasticsearch:
     - '9300:9300'
   volumes:
     - ./for-docker/elasticsearch/data:/usr/share/elasticsearch/data
+
 mysql:
   image: 'mysql:5.7'
   ports:
@@ -14,3 +15,15 @@ mysql:
   volumes:
     - ./for-docker/mysql/conf.d:/etc/mysql/conf.d
     - ./for-docker/mysql/data:/var/lib/mysql
+
+rabbitmq:
+  image: 'rabbitmq:3.6-management-alpine'
+  ports:
+    # https://github.com/docker-library/rabbitmq/blob/1509b142f0b858bb9d8521397f34229cd3027c1e/3.6/alpine/Dockerfile#L90
+    - '4369:4369'
+    - '5671:5671'
+    - '5672:5672'
+    - '25672:25672'
+    # https://github.com/docker-library/rabbitmq/blob/79277042564875d55e4b05a60c65b6eb46651a94/3.6/alpine/management/Dockerfile#L5
+    - '15671:15671'
+    - '15672:15672'
