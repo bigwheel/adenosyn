@@ -6,10 +6,11 @@ import org.scalatest.Matchers
 import scalikejdbc._
 import scalikejdbc.metadata.Column
 
-class ChangeRecorderSpec extends FreeSpec with Matchers with DatabaseSpecHelper {
+class ChangeRecorderSpec extends FreeSpec with Matchers
+  with DatabaseSpecHelper {
 
-  private[this] def subject = new ChangeRecorder(url(),observeeDbName, recordDbName,
-    userName, password)
+  private[this] def subject = new ChangeRecorder(url(),
+    observeeDbName, recordDbName, userName, password)
 
   ".setUp" - {
     "database permission aspect:" - {
@@ -66,7 +67,8 @@ class ChangeRecorderSpec extends FreeSpec with Matchers with DatabaseSpecHelper 
 
       "create a record table in record database" in {
         withUserAndDatabases {
-          s"CREATE TABLE $observeeDbName.table1(id INTEGER PRIMARY KEY not null)".query
+          (s"CREATE TABLE $observeeDbName.table1(id INTEGER PRIMARY KEY " +
+            "not null)").query
 
           subject.setUp
 
@@ -78,12 +80,13 @@ class ChangeRecorderSpec extends FreeSpec with Matchers with DatabaseSpecHelper 
         withTableUserAndDatabases {
           subject.setUp
 
-          NamedDB('record).getTable("table1").get.columns.withFilter(_.isPrimaryKey).
-            map(_.name) should be(List("pr1", "pr2"))
+          NamedDB('record).getTable("table1").get.columns.
+            withFilter(_.isPrimaryKey).map(_.name) should be(List("pr1", "pr2"))
         }
       }
 
-      "column definitions of primary keys in record table match it in observee table" in {
+      "column definitions of primary keys in record table match it in " +
+        "observee table" in {
         withTableUserAndDatabases {
           subject.setUp
 
@@ -96,68 +99,83 @@ class ChangeRecorderSpec extends FreeSpec with Matchers with DatabaseSpecHelper 
     }
 
     "record manipulation aspect:" - {
-      "no rows created in record table when a row is inserted to observee table before .setUp is executed" in {
+      "no rows created in record table when a row is inserted to observee " +
+        "table before .setUp is executed" in {
         withTableUserAndDatabases {
-          s"INSERT INTO $observeeDbName.table1 (pr1, pr2, col1) VALUES (1, 'test', 3)".query
+          (s"INSERT INTO $observeeDbName.table1 (pr1, pr2, col1) VALUES " +
+            "(1, 'test', 3)").query
 
           subject.setUp
 
           NamedDB('record).readOnly { implicit session =>
-            SQL("SELECT COUNT(*) FROM table1").map(_.int(1)).single.apply().get should be(0)
+            SQL("SELECT COUNT(*) FROM table1").map(_.int(1)).single.apply().
+              get should be(0)
           }
         }
       }
 
-      "the row created in record table when a row is inserted to observee table after .setUp is executed" in {
+      "the row created in record table when a row is inserted to observee " +
+        "table after .setUp is executed" in {
         withTableUserAndDatabases {
           subject.setUp
 
-          s"INSERT INTO $observeeDbName.table1 (pr1, pr2, col1) VALUES (1, 'test', 3)".query
+          (s"INSERT INTO $observeeDbName.table1 (pr1, pr2, col1) VALUES " +
+            "(1, 'test', 3)").query
 
           NamedDB('record).readOnly { implicit session =>
-            SQL("SELECT COUNT(*) FROM table1").map(_.int(1)).single.apply().get should be(1)
+            SQL("SELECT COUNT(*) FROM table1").map(_.int(1)).single.apply().
+              get should be(1)
           }
         }
       }
 
-      "the row created in record table when a row is deleted to observee table after .setUp is executed" in {
+      "the row created in record table when a row is deleted to observee " +
+        "table after .setUp is executed" in {
         withTableUserAndDatabases {
-          s"INSERT INTO $observeeDbName.table1 (pr1, pr2, col1) VALUES (1, 'test', 3)".query
+          (s"INSERT INTO $observeeDbName.table1 (pr1, pr2, col1) VALUES " +
+            "(1, 'test', 3)").query
 
           subject.setUp
 
           s"DELETE FROM $observeeDbName.table1".query
 
           NamedDB('record).readOnly { implicit session =>
-            SQL("SELECT COUNT(*) FROM table1").map(_.int(1)).single.apply().get should be(1)
+            SQL("SELECT COUNT(*) FROM table1").map(_.int(1)).single.apply().
+              get should be(1)
           }
         }
       }
 
-      "the row created in record table when a primary key of a row is updated to observee table after .setUp is executed" in {
+      "the row created in record table when a primary key of a row is " +
+        "updated to observee table after .setUp is executed" in {
         withTableUserAndDatabases {
-          s"INSERT INTO $observeeDbName.table1 (pr1, pr2, col1) VALUES (1, 'test', 3)".query
+          (s"INSERT INTO $observeeDbName.table1 (pr1, pr2, col1) VALUES " +
+            "(1, 'test', 3)").query
 
           subject.setUp
 
           s"UPDATE $observeeDbName.table1 SET pr1=2".query
 
           NamedDB('record).readOnly { implicit session =>
-            SQL("SELECT COUNT(*) FROM table1").map(_.int(1)).single.apply().get should be(2)
+            SQL("SELECT COUNT(*) FROM table1").map(_.int(1)).single.apply().
+              get should be(2)
           }
         }
       }
 
-      "the row created in record table when a non primary key of a row is updated to observee table after .setUp is executed" in {
+      "the row created in record table when a non primary key of a row is " +
+        "updated to observee table after .setUp is executed" in {
         withTableUserAndDatabases {
-          s"INSERT INTO $observeeDbName.table1 (pr1, pr2, col1) VALUES (1, 'test', 3)".query
+          (s"INSERT INTO $observeeDbName.table1 (pr1, pr2, col1) VALUES " +
+            "(1, 'test', 3)").query
 
           subject.setUp
 
           s"UPDATE $observeeDbName.table1 SET col1=2".query
 
           NamedDB('record).readOnly { implicit session =>
-            SQL("SELECT COUNT(*) FROM table1").map(_.int(1)).single.apply().get should be(1)
+            SQL("SELECT COUNT(*) FROM table1").map(_.int(1)).single.apply().
+              get should be(1)
           }
         }
       }
@@ -168,17 +186,20 @@ class ChangeRecorderSpec extends FreeSpec with Matchers with DatabaseSpecHelper 
   ".tearDown" - {
 
     "record manipulation aspect:" - {
-      "no rows created in record table when a row is inserted to observee table after .tearDown is executed" in {
+      "no rows created in record table when a row is inserted to observee " +
+        "table after .tearDown is executed" in {
         withTableUserAndDatabases {
           noException should be thrownBy {
             val subj = subject
             subj.setUp
             subj.tearDown
 
-            s"INSERT INTO $observeeDbName.table1 (pr1, pr2, col1) VALUES (1, 'test', 3)".query
+            (s"INSERT INTO $observeeDbName.table1 (pr1, pr2, col1) VALUES " +
+              "(1, 'test', 3)").query
 
             NamedDB('record).readOnly { implicit session =>
-              SQL("SELECT COUNT(*) FROM table1").map(_.int(1)).single.apply().get should be(0)
+              SQL("SELECT COUNT(*) FROM table1").map(_.int(1)).single.apply().
+                get should be(0)
             }
           }
         }
