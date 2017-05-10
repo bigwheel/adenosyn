@@ -17,7 +17,7 @@ class Assembler(implicit session: DBSession) {
   }
 
   private[this] case class ParsedColumn(tableName: String, columnName: String, dimention: Int, value: Any) {
-    // arrayじゃなくても結果返すので注意
+    // return result whatever value is not array
     def drill(index: Int): ParsedColumn = value match {
       case a: Array[_] => new ParsedColumn(tableName, columnName, dimention - 1, a(index))
       case a => new ParsedColumn(tableName, columnName, dimention, a)

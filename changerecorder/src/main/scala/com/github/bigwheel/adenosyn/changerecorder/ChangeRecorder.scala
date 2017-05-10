@@ -27,7 +27,7 @@ class ChangeRecorder private(observeeDbName: String, recordDbName: String,
       val primaryColumnNameList = primaryColumns.map(_.name)
       val primaryColumnNames = primaryColumnNameList.mkString(", ")
 
-      // OLD.とNEW.はtrigger文固有のキーワード
+      // 'OLD' and 'NEW' are special keyword of trigger
       // https://dev.mysql.com/doc/refman/5.6/ja/trigger-syntax.html
       val queriesForObservee = Seq(
         s"""CREATE TRIGGER changerecorder_observee_${tableName}_insert AFTER INSERT

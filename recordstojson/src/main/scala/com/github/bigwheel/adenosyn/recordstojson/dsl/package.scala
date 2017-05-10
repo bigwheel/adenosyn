@@ -38,7 +38,8 @@ package object dsl {
 
     protected[dsl] def copy(childSide: Table): JoinDefinitionBase
 
-    // これ以下のやつはJoinDefinitionクラスでのみ使われるので、構造を見なおしたらここで定義する必要なくなる
+    // TODO: refactor class design because following 2 methods be used
+    // oly by JoinDefinition not done by RootJoinDefinition
     protected[dsl] def listUseColumns(parentTableName: TableName): Seq[(TableName, Column)]
 
     protected[dsl] def appendColumns(columnDetails: Map[TableName, Seq[Column]]): JoinDefinitionForConstruct
@@ -50,7 +51,9 @@ package object dsl {
     override protected[dsl] def listUseColumns(parentTableName: TableName) = childSide.listUseColumns
 
     override protected[dsl] def appendColumns(columnDetails: Map[TableName, Seq[Column]]) = {
-      throw new IllegalStateException("ここにJoinDefinition派生クラス以外がくるはずはない")
+      throw new IllegalStateException(
+        "appendColumns method of RootJoinDefinition could not be called"
+      )
     }
   }
 
@@ -95,13 +98,12 @@ package object dsl {
 
   sealed trait JsValue {
     /**
-      * 構造定義オブジェクトの中からテーブル構造のみを取り出す(もちろんTreeになる)
+      * Extract only table structue from JsValue tree
       */
     protected[dsl] def constructTableTree: Seq[JoinDefinitionBase]
 
     /**
-      * 使用するカラム一覧を出す。ただしJoinDefinitionで使われるカラムは除く
-      * (そちらは統合したツリーに対して計算する方が楽であるため、別で計算する)
+      * Enumerate used columns except used in JoinDefinitions
       */
     protected[dsl] def listUseColumns: Seq[(TableName, Column)]
 
@@ -166,7 +168,7 @@ package object dsl {
 
 
   //------------------------------------//
-  // 以下private
+  // private
   //------------------------------------//
 
   private[dsl] case class TableNameAndColumn(val tableName: TableName, column: Column) {
