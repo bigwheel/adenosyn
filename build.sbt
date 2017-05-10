@@ -54,6 +54,13 @@ lazy val changerecorder = project.
   )
 )
 
+lazy val queuefeeder = project.
+  settings(baseSettings).
+  settings(
+    name := "queuefeeder",
+    libraryDependencies ++= scalikejdbcLibs
+  )
+
 lazy val recordstojson = project.
   dependsOn(common % "test->test;compile->compile").
   settings(baseSettings).
