@@ -39,7 +39,7 @@ lazy val common = project.
   settings(baseSettings).
   settings(
     name := "common",
-    libraryDependencies ++= scalikejdbcLibs
+    libraryDependencies ++= scalikejdbcLibs ++ scalatestLibs
   )
 
 lazy val changerecorder = project.
@@ -55,10 +55,11 @@ lazy val changerecorder = project.
 )
 
 lazy val queuefeeder = project.
+  dependsOn(common % "test->test").
   settings(baseSettings).
   settings(
     name := "queuefeeder",
-    libraryDependencies ++= scalikejdbcLibs
+    libraryDependencies ++= scalikejdbcLibs ++ scalatestLibs
   )
 
 lazy val recordstojson = project.

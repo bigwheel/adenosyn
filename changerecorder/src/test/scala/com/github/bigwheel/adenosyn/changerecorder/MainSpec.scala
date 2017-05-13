@@ -1,5 +1,6 @@
 package com.github.bigwheel.adenosyn.changerecorder
 
+import com.github.bigwheel.adenosyn.DatabaseSpecHelper
 import com.github.bigwheel.adenosyn.sqlutil
 import java.io.FileOutputStream
 import java.io.PrintStream

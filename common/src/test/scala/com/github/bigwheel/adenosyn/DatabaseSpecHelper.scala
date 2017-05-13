@@ -1,6 +1,5 @@
-package com.github.bigwheel.adenosyn.changerecorder
+package com.github.bigwheel.adenosyn
 
-import com.github.bigwheel.adenosyn.sqlutil
 import com.github.bigwheel.adenosyn.sqlutil._
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.Suite
@@ -12,9 +11,8 @@ import scalikejdbc._
 trait DatabaseSpecHelper extends BeforeAndAfterAll { this: Suite =>
 
   // http://qiita.com/suin/items/5a7a56afacc8a35abcb6
-  private[this] def md5(text: String): String = {
-    java.security.MessageDigest.getInstance("MD5").digest(text.getBytes).map("%02x".format(_)).mkString
-  }
+  private[this] def md5(text: String): String = java.security.MessageDigest.
+    getInstance("MD5").digest(text.getBytes).map("%02x".format(_)).mkString
 
   protected[this] val postfix = md5(this.getClass().getCanonicalName()).take(8)
   protected[this] val observeeDbName = "observee" + postfix
