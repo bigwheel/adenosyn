@@ -66,36 +66,28 @@ class ChangeRecorderSpec extends FreeSpec with Matchers
     "record table definition aspect:" - {
 
       "create a record table in record database" in {
-        withUserAndDatabases {
-          (s"CREATE TABLE $observeeDbName.table1(id INTEGER PRIMARY KEY " +
-            "not null)").query
-
+        withTableUserAndDatabases {
           subject.setUp
 
           NamedDB('record).getTable("table1") shouldNot be(empty)
         }
       }
 
-      "the record table has only primary keys of observee table" in {
-        withTableUserAndDatabases {
-          subject.setUp
-
-          NamedDB('record).getTable("table1").get.columns.
-            withFilter(_.isPrimaryKey).map(_.name) should be(List("pr1", "pr2"))
-        }
-      }
-
-      "column definitions of primary keys in record table match it in " +
-        "observee table" in {
+      "the record table has only primary keys of observee table and operation" +
+        " date column" in {
         withTableUserAndDatabases {
           subject.setUp
 
           NamedDB('record).getTable("table1").get.columns should matchPattern {
-            case List(Column("pr1", _, "INT", _, true, true, false, _, _),
-            Column("pr2", _, "VARCHAR", 30, true, true, false, _, _)) =>
+            case List(
+            Column("updated_at", _, "TIMESTAMP", _, true, false, false, _, _),
+            Column("pr1", _, "INT", _, true, true, false, _, _),
+            Column("pr2", _, "VARCHAR", 30, true, true, false, _, _)
+            ) =>
           }
         }
       }
+
     }
 
     "record manipulation aspect:" - {

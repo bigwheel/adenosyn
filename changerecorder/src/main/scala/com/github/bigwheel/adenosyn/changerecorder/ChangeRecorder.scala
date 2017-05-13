@@ -47,9 +47,10 @@ class ChangeRecorder private(observeeDbName: String, recordDbName: String,
       ).map(_.stripMargin.replace('\n', ' '))
 
       val queryForRecord =
-        s"CREATE TABLE IF NOT EXISTS $recordDbName.$tableName " +
-          s"(PRIMARY KEY($primaryColumnNames)) AS " +
-          s"SELECT $primaryColumnNames FROM $observeeDbName.$tableName WHERE FALSE"
+        s"""CREATE TABLE IF NOT EXISTS $recordDbName.$tableName
+           |(updated_at TIMESTAMP not null, PRIMARY KEY($primaryColumnNames))
+           |AS SELECT $primaryColumnNames FROM $observeeDbName.$tableName
+           |WHERE FALSE""".stripMargin.replace('\n', ' ')
 
       (queriesForObservee, queryForRecord)
     }
