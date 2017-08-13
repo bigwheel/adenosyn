@@ -55,7 +55,7 @@ lazy val changerecorder = project.
 )
 
 lazy val queuefeeder = project.
-  dependsOn(common % "test->test").
+  dependsOn(common % "test->test", changerecorder % "test->compile").
   settings(baseSettings).
   settings(
     name := "queuefeeder",
