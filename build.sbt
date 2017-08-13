@@ -59,7 +59,9 @@ lazy val queuefeeder = project.
   settings(baseSettings).
   settings(
     name := "queuefeeder",
-    libraryDependencies ++= scalikejdbcLibs ++ scalatestLibs
+    libraryDependencies ++= scalikejdbcLibs ++ scalatestLibs ++ Seq(
+      "com.rabbitmq" % "amqp-client" % "4.1.0"
+    )
   )
 
 lazy val recordstojson = project.
