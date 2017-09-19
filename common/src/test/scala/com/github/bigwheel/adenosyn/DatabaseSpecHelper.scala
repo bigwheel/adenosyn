@@ -17,8 +17,8 @@ trait DatabaseSpecHelper extends BeforeAndAfterAll { this: Suite =>
   protected[this] val postfix = md5(this.getClass().getCanonicalName()).take(8)
   protected[this] val observeeDbName = "observee" + postfix
   protected[this] val recordDbName = "record" + postfix
-  protected[this] val userName = "changerecorder" + postfix
-  protected[this] val password = "cr" + postfix
+  protected[this] val userName = "changeloggermanager" + postfix
+  protected[this] val password = "clm" + postfix
 
   override protected def beforeAll() = {
     super.beforeAll()

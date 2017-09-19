@@ -1,4 +1,4 @@
-package com.github.bigwheel.adenosyn.changerecorder
+package com.github.bigwheel.adenosyn.changeloggermanager
 
 import java.security.Permission
 import org.scalatest.BeforeAndAfterAll

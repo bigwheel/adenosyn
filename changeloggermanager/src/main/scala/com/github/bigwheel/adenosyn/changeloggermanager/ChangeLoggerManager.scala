@@ -1,10 +1,10 @@
-package com.github.bigwheel.adenosyn.changerecorder
+package com.github.bigwheel.adenosyn.changeloggermanager
 
 import scalikejdbc._
 
 case class SetupQueries(forObservee: List[String], forRecord: List[String])
 
-class ChangeRecorder private(observeeDbName: String, recordDbName: String,
+class ChangeLoggerManager private(observeeDbName: String, recordDbName: String,
   connectionPool: ConnectionPool) {
 
   def this(jdbcUrl: String, observeeDbName: String, recordDbName: String, username: String,
@@ -30,17 +30,17 @@ class ChangeRecorder private(observeeDbName: String, recordDbName: String,
       // 'OLD' and 'NEW' are special keyword of trigger
       // https://dev.mysql.com/doc/refman/5.6/ja/trigger-syntax.html
       val queriesForObservee = Seq(
-        s"""CREATE TRIGGER changerecorder_observee_${tableName}_insert AFTER INSERT
+        s"""CREATE TRIGGER changeloggermanager_observee_${tableName}_insert AFTER INSERT
            |ON $observeeDbName.$tableName FOR EACH ROW
            |REPLACE INTO $recordDbName.$tableName($primaryColumnNames)
            |VALUES(${primaryColumnNameList.map("NEW." + _).mkString(", ")})""",
-        s"""CREATE TRIGGER changerecorder_observee_${tableName}_update AFTER UPDATE
+        s"""CREATE TRIGGER changeloggermanager_observee_${tableName}_update AFTER UPDATE
            |ON $observeeDbName.$tableName FOR EACH ROW
            |REPLACE INTO $recordDbName.$tableName($primaryColumnNames)
            |VALUES
            |(${primaryColumnNameList.map("OLD." + _).mkString(", ")}),
            |(${primaryColumnNameList.map("NEW." + _).mkString(", ")})""",
-        s"""CREATE TRIGGER changerecorder_observee_${tableName}_delete AFTER DELETE
+        s"""CREATE TRIGGER changeloggermanager_observee_${tableName}_delete AFTER DELETE
            |ON $observeeDbName.$tableName FOR EACH ROW
            |REPLACE INTO $recordDbName.$tableName($primaryColumnNames)
            |VALUES(${primaryColumnNameList.map("OLD." + _).mkString(", ")})"""

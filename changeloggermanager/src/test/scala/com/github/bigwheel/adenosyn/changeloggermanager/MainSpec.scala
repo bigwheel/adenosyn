@@ -1,4 +1,4 @@
-package com.github.bigwheel.adenosyn.changerecorder
+package com.github.bigwheel.adenosyn.changeloggermanager
 
 import com.github.bigwheel.adenosyn.DatabaseSpecHelper
 import com.github.bigwheel.adenosyn.sqlutil

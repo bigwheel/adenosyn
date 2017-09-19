@@ -1,6 +1,6 @@
 package com.github.bigwheel.adenosyn.changeupdater
 
-import com.github.bigwheel.adenosyn.changerecorder.ChangeRecorder
+import com.github.bigwheel.adenosyn.changeloggermanager.ChangeLoggerManager
 import com.github.bigwheel.adenosyn.recordstojson.Assembler
 import com.github.bigwheel.adenosyn.recordstojson.dsl._
 import com.github.bigwheel.adenosyn.sqlutil
@@ -104,7 +104,7 @@ class MainSpec extends FunSpec with Matchers with BeforeAndAfter with BeforeAndA
     private[this] val username = "adenosyn"
     private[this] val password = "yb"
 
-    val cr = new ChangeRecorder(url, "observee", "record", username, password)
+    val cr = new ChangeLoggerManager(url, "observee", "record", username, password)
 
     def buildAll() = {
       val client = ElasticClient.transport(Settings.settingsBuilder.put("cluster_name",

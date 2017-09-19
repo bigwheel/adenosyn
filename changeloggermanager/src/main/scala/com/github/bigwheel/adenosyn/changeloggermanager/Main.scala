@@ -1,4 +1,4 @@
-package com.github.bigwheel.adenosyn.changerecorder
+package com.github.bigwheel.adenosyn.changeloggermanager
 
 import net.bmjames.opts._
 import scalaz.syntax.applicativePlus._
@@ -32,18 +32,18 @@ object Main {
 
   def main(args: Array[String]) {
     val opts = info(parser <*> helper,
-      header("changerecorder - which records row changes in another table"))
-    execParser(args, "changerecorder.jar", opts) match {
+      header("changeloggermanager - which records row changes in another table"))
+    execParser(args, "changeloggermanager.jar", opts) match {
       case Validate(url, observee, record, username, password, dryRun) =>
         println("not implemented yet")
       case Setup(url, observee, record, username, password, dryRun) =>
-        val cr = new ChangeRecorder(url, observee, record, username, password)
+        val cr = new ChangeLoggerManager(url, observee, record, username, password)
         if (dryRun)
           println((cr.setUpQueries.forObservee ++ cr.setUpQueries.forRecord).mkString("\n"))
         else
           cr.setUp()
       case Teardown(url, observee, record, username, password, dryRun) =>
-        val cr = new ChangeRecorder(url, observee, record, username, password)
+        val cr = new ChangeLoggerManager(url, observee, record, username, password)
         if (dryRun)
           println(cr.tearDownQueries.mkString("\n"))
         else

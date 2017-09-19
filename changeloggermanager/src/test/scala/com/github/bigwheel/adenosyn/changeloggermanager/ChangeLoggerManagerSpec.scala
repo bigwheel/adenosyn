@@ -1,4 +1,4 @@
-package com.github.bigwheel.adenosyn.changerecorder
+package com.github.bigwheel.adenosyn.changeloggermanager
 
 import com.github.bigwheel.adenosyn.DatabaseSpecHelper
 import com.github.bigwheel.adenosyn.sqlutil._
@@ -7,10 +7,10 @@ import org.scalatest.Matchers
 import scalikejdbc._
 import scalikejdbc.metadata.Column
 
-class ChangeRecorderSpec extends FreeSpec with Matchers
+class ChangeLoggerManagerSpec extends FreeSpec with Matchers
   with DatabaseSpecHelper {
 
-  private[this] def subject = new ChangeRecorder(url(),
+  private[this] def subject = new ChangeLoggerManager(url(),
     observeeDbName, recordDbName, userName, password)
 
   ".setUp" - {
@@ -29,7 +29,8 @@ class ChangeRecorderSpec extends FreeSpec with Matchers
         "there is no user in record database" - {
           "produce Exception" in {
             withDatabases {
-              Seq(s"CREATE USER '$userName'@'%' IDENTIFIED BY 'changerecorder'",
+              Seq(s"CREATE USER '$userName'@'%' IDENTIFIED BY " +
+                s"'changeloggermanager'",
                 s"GRANT ALL ON $observeeDbName.* TO '$userName'@'%'").query
 
               a[Exception] should be thrownBy {

@@ -42,11 +42,11 @@ lazy val common = project.
     libraryDependencies ++= scalikejdbcLibs ++ scalatestLibs
   )
 
-lazy val changerecorder = project.
+lazy val changeloggermanager = project.
   enablePlugins(JavaAppPackaging).
   dependsOn(common % "test->test;compile->compile").
   settings(baseSettings).settings(
-  name := "changerecorder",
+  name := "changeloggermanager",
   resolvers += "bmjames Bintray Repo" at "https://dl.bintray.com/bmjames/maven",
   libraryDependencies ++= scalikejdbcLibs ++ scalatestLibs ++ Seq(
     scalazCoreLib,
@@ -55,7 +55,7 @@ lazy val changerecorder = project.
 )
 
 lazy val queuefeeder = project.
-  dependsOn(common % "test->test", changerecorder % "test->compile").
+  dependsOn(common % "test->test", changeloggermanager % "test->compile").
   settings(baseSettings).
   settings(
     name := "queuefeeder",
@@ -74,7 +74,7 @@ lazy val recordstojson = project.
 
 lazy val main = project.
   dependsOn(common % "test->test;compile->compile").
-  dependsOn(changerecorder).
+  dependsOn(changeloggermanager).
   dependsOn(recordstojson).
   settings(baseSettings).
   settings(
