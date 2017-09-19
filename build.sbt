@@ -64,7 +64,7 @@ lazy val queuefeeder = project.
     )
   )
 
-lazy val recordstojson = project.
+lazy val changelogtojson = project.
   dependsOn(common % "test->test;compile->compile").
   settings(baseSettings).
   settings(
@@ -75,7 +75,7 @@ lazy val recordstojson = project.
 lazy val main = project.
   dependsOn(common % "test->test;compile->compile").
   dependsOn(changeloggermanager).
-  dependsOn(recordstojson).
+  dependsOn(changelogtojson).
   settings(baseSettings).
   settings(
     name := "adenosyn",

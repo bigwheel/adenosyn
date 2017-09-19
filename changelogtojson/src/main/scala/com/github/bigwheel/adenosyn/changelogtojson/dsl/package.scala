@@ -1,4 +1,4 @@
-package com.github.bigwheel.adenosyn.recordstojson
+package com.github.bigwheel.adenosyn.changelogtojson
 
 /**
   * Purpose: generate sql for RDBMS to JSON

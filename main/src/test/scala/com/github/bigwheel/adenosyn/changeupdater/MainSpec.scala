@@ -1,8 +1,8 @@
 package com.github.bigwheel.adenosyn.changeupdater
 
 import com.github.bigwheel.adenosyn.changeloggermanager.ChangeLoggerManager
-import com.github.bigwheel.adenosyn.recordstojson.Assembler
-import com.github.bigwheel.adenosyn.recordstojson.dsl._
+import com.github.bigwheel.adenosyn.changelogtojson.Assembler
+import com.github.bigwheel.adenosyn.changelogtojson.dsl._
 import com.github.bigwheel.adenosyn.sqlutil
 import com.sksamuel.elastic4s.ElasticClient
 import com.sksamuel.elastic4s.ElasticDsl._
@@ -33,7 +33,7 @@ class MainSpec extends FunSpec with Matchers with BeforeAndAfter with BeforeAndA
     Class.forName("com.mysql.jdbc.Driver")
     ConnectionPool.singleton(sqlutil.url(), "root", "root")
     ConnectionPool.add('observee, sqlutil.url("observee"), "root", "root")
-    ConnectionPool.add('record, sqlutil.url("record"), "root", "root")
+    ConnectionPool.add('changelog, sqlutil.url("changelog"), "root", "root")
   }
 
   private[this] val elasticsearchUrl = ElasticsearchClientUri("127.0.0.1", 9300)
@@ -56,12 +56,12 @@ class MainSpec extends FunSpec with Matchers with BeforeAndAfter with BeforeAndA
       sqlutil.executeStatements(
         """DROP DATABASE IF EXISTS observee;
           |CREATE DATABASE         observee;
-          |DROP DATABASE IF EXISTS record;
-          |CREATE DATABASE         record;
+          |DROP DATABASE IF EXISTS changelog;
+          |CREATE DATABASE         changelog;
           |DROP USER IF EXISTS 'adenosyn'@'%';
           |CREATE USER         'adenosyn'@'%' IDENTIFIED BY 'yb';
-          |GRANT ALL ON observee.* TO 'adenosyn'@'%';
-          |GRANT ALL ON record.*   TO 'adenosyn'@'%';""".stripMargin
+          |GRANT ALL ON observee.*  TO 'adenosyn'@'%';
+          |GRANT ALL ON changelog.* TO 'adenosyn'@'%';""".stripMargin
       )
     }
     NamedDB('observee).autoCommit { implicit session =>
@@ -104,7 +104,8 @@ class MainSpec extends FunSpec with Matchers with BeforeAndAfter with BeforeAndA
     private[this] val username = "adenosyn"
     private[this] val password = "yb"
 
-    val cr = new ChangeLoggerManager(url, "observee", "record", username, password)
+    val cr = new ChangeLoggerManager(url, "observee", "changelog", username,
+      password)
 
     def buildAll() = {
       val client = ElasticClient.transport(Settings.settingsBuilder.put("cluster_name",

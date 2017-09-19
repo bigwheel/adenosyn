@@ -49,16 +49,16 @@ class MainSpec extends FreeSpec with Matchers with ExitStatusSpecHelper with Dat
     TestCase("setup", false),
     TestCase("teardown", false),
     TestCase(s"setup ${sqlutil.url()} unkown_db1 unkown_db2 $userName $password", false),
-    TestCase(s"setup ${sqlutil.url()} $observeeDbName $recordDbName $userName $password", true,
+    TestCase(s"setup ${sqlutil.url()} $observeeDbName $changeLogDbName $userName $password", true,
       arg => withTableUserAndDatabases { arg }),
-    TestCase(s"setup ${sqlutil.url()} $observeeDbName $recordDbName $userName $password -d", true,
+    TestCase(s"setup ${sqlutil.url()} $observeeDbName $changeLogDbName $userName $password -d", true,
       arg => withTableUserAndDatabases { arg }),
     TestCase(s"teardown ${sqlutil.url()} unkown_db1 unkown_db2 $userName $password", false),
-    TestCase(s"teardown ${sqlutil.url()} $observeeDbName $recordDbName $userName $password", true,
+    TestCase(s"teardown ${sqlutil.url()} $observeeDbName $changeLogDbName $userName $password", true,
       arg => withTableUserAndDatabases { arg }),
-    TestCase(s"teardown ${sqlutil.url()} $observeeDbName $recordDbName $userName $password -d",
+    TestCase(s"teardown ${sqlutil.url()} $observeeDbName $changeLogDbName $userName $password -d",
       true, arg => withTableUserAndDatabases { arg }),
-    TestCase(s"validate ${sqlutil.url()} $observeeDbName $recordDbName $userName $password", true)
+    TestCase(s"validate ${sqlutil.url()} $observeeDbName $changeLogDbName $userName $password", true)
   )
   for (tc <- testCases)
     s"with '${tc.arg}', ${if (tc.isSuccess) "no " else "" }error happens" in {

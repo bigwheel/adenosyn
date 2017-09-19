@@ -2,13 +2,13 @@ package com.github.bigwheel.adenosyn.changeloggermanager
 
 import scalikejdbc._
 
-case class SetupQueries(forObservee: List[String], forRecord: List[String])
+case class SetupQueries(forObservee: List[String], forChangeLog: List[String])
 
-class ChangeLoggerManager private(observeeDbName: String, recordDbName: String,
+class ChangeLoggerManager private(observeeDbName: String, changeLogDbName: String,
   connectionPool: ConnectionPool) {
 
-  def this(jdbcUrl: String, observeeDbName: String, recordDbName: String, username: String,
-    password: String) = this(observeeDbName, recordDbName,
+  def this(jdbcUrl: String, observeeDbName: String, changeLogDbName: String, username: String,
+    password: String) = this(observeeDbName, changeLogDbName,
     Commons2ConnectionPoolFactory(jdbcUrl, username, password)
   )
 
@@ -32,34 +32,34 @@ class ChangeLoggerManager private(observeeDbName: String, recordDbName: String,
       val changeLogger = Seq(
         s"""CREATE TRIGGER changeloggermanager_observee_${tableName}_insert AFTER INSERT
            |ON $observeeDbName.$tableName FOR EACH ROW
-           |REPLACE INTO $recordDbName.$tableName($primaryColumnNames)
+           |REPLACE INTO $changeLogDbName.$tableName($primaryColumnNames)
            |VALUES(${primaryColumnNameList.map("NEW." + _).mkString(", ")})""",
         s"""CREATE TRIGGER changeloggermanager_observee_${tableName}_update AFTER UPDATE
            |ON $observeeDbName.$tableName FOR EACH ROW
-           |REPLACE INTO $recordDbName.$tableName($primaryColumnNames)
+           |REPLACE INTO $changeLogDbName.$tableName($primaryColumnNames)
            |VALUES
            |(${primaryColumnNameList.map("OLD." + _).mkString(", ")}),
            |(${primaryColumnNameList.map("NEW." + _).mkString(", ")})""",
         s"""CREATE TRIGGER changeloggermanager_observee_${tableName}_delete AFTER DELETE
            |ON $observeeDbName.$tableName FOR EACH ROW
-           |REPLACE INTO $recordDbName.$tableName($primaryColumnNames)
+           |REPLACE INTO $changeLogDbName.$tableName($primaryColumnNames)
            |VALUES(${primaryColumnNameList.map("OLD." + _).mkString(", ")})"""
       ).map(_.stripMargin.replace('\n', ' '))
 
-      val queryForRecord =
-        s"""CREATE TABLE IF NOT EXISTS $recordDbName.$tableName
+      val queryForChangeLog =
+        s"""CREATE TABLE IF NOT EXISTS $changeLogDbName.$tableName
            |(updated_at TIMESTAMP not null, PRIMARY KEY($primaryColumnNames))
            |AS SELECT $primaryColumnNames FROM $observeeDbName.$tableName
            |WHERE FALSE""".stripMargin.replace('\n', ' ')
 
-      (changeLogger, queryForRecord)
+      (changeLogger, queryForChangeLog)
     }
 
     val temp = queries.unzip
     val queriesForObservee = temp._1.flatten
-    val queriesForRecord = temp._2
+    val queriesForChangeLog = temp._2
 
-    SetupQueries(queriesForObservee, queriesForRecord)
+    SetupQueries(queriesForObservee, queriesForChangeLog)
   }
 
   def setUp() = {
@@ -71,9 +71,9 @@ class ChangeLoggerManager private(observeeDbName: String, recordDbName: String,
     }
 
     using(DB(connectionPool.borrow)) { db =>
-      db.conn.setCatalog(recordDbName)
+      db.conn.setCatalog(changeLogDbName)
       db.autoCommit { implicit session =>
-        setUpQueries.forRecord.foreach(SQL(_).execute.apply())
+        setUpQueries.forChangeLog.foreach(SQL(_).execute.apply())
       }
     }
 

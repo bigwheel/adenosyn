@@ -11,7 +11,7 @@ class ChangeLoggerManagerSpec extends FreeSpec with Matchers
   with DatabaseSpecHelper {
 
   private[this] def subject = new ChangeLoggerManager(url(),
-    observeeDbName, recordDbName, userName, password)
+    observeeDbName, changeLogDbName, userName, password)
 
   ".setUp" - {
     "database permission aspect:" - {
@@ -26,7 +26,7 @@ class ChangeLoggerManagerSpec extends FreeSpec with Matchers
       }
 
       "there is the user in observee database" - {
-        "there is no user in record database" - {
+        "there is no user in changelog database" - {
           "produce Exception" in {
             withDatabases {
               Seq(s"CREATE USER '$userName'@'%' IDENTIFIED BY " +
@@ -40,7 +40,7 @@ class ChangeLoggerManagerSpec extends FreeSpec with Matchers
           }
         }
 
-        "there is the user in record database" - {
+        "there is the user in changelog database" - {
           "succeed with appropriate permission" in {
             withUserAndDatabases {
               noException should be thrownBy {
@@ -65,22 +65,22 @@ class ChangeLoggerManagerSpec extends FreeSpec with Matchers
       }
     }
 
-    "record table definition aspect:" - {
+    "changelog table definition aspect:" - {
 
-      "create a record table in record database" in {
+      "create a changelog table in changelog database" in {
         withTableUserAndDatabases {
           subject.setUp
 
-          NamedDB('record).getTable("table1") shouldNot be(empty)
+          NamedDB('changelog).getTable("table1") shouldNot be(empty)
         }
       }
 
-      "the record table has only primary keys of observee table and operation" +
+      "the changelog table has only primary keys of observee table and operation" +
         " date column" in {
         withTableUserAndDatabases {
           subject.setUp
 
-          NamedDB('record).getTable("table1").get.columns should matchPattern {
+          NamedDB('changelog).getTable("table1").get.columns should matchPattern {
             case List(
             Column("updated_at", _, "TIMESTAMP", _, true, false, false, _, _),
             Column("pr1", _, "INT", _, true, true, false, _, _),
@@ -92,8 +92,8 @@ class ChangeLoggerManagerSpec extends FreeSpec with Matchers
 
     }
 
-    "record manipulation aspect:" - {
-      "no rows created in record table when a row is inserted to observee " +
+    "changelog manipulation aspect:" - {
+      "no rows created in changelog table when a row is inserted to observee " +
         "table before .setUp is executed" in {
         withTableUserAndDatabases {
           (s"INSERT INTO $observeeDbName.table1 (pr1, pr2, col1) VALUES " +
@@ -101,14 +101,14 @@ class ChangeLoggerManagerSpec extends FreeSpec with Matchers
 
           subject.setUp
 
-          NamedDB('record).readOnly { implicit session =>
+          NamedDB('changelog).readOnly { implicit session =>
             SQL("SELECT COUNT(*) FROM table1").map(_.int(1)).single.apply().
               get should be(0)
           }
         }
       }
 
-      "the row created in record table when a row is inserted to observee " +
+      "the row created in changelog table when a row is inserted to observee " +
         "table after .setUp is executed" in {
         withTableUserAndDatabases {
           subject.setUp
@@ -116,14 +116,14 @@ class ChangeLoggerManagerSpec extends FreeSpec with Matchers
           (s"INSERT INTO $observeeDbName.table1 (pr1, pr2, col1) VALUES " +
             "(1, 'test', 3)").query
 
-          NamedDB('record).readOnly { implicit session =>
+          NamedDB('changelog).readOnly { implicit session =>
             SQL("SELECT COUNT(*) FROM table1").map(_.int(1)).single.apply().
               get should be(1)
           }
         }
       }
 
-      "the row created in record table when a row is deleted to observee " +
+      "the row created in changelog table when a row is deleted to observee " +
         "table after .setUp is executed" in {
         withTableUserAndDatabases {
           (s"INSERT INTO $observeeDbName.table1 (pr1, pr2, col1) VALUES " +
@@ -133,14 +133,14 @@ class ChangeLoggerManagerSpec extends FreeSpec with Matchers
 
           s"DELETE FROM $observeeDbName.table1".query
 
-          NamedDB('record).readOnly { implicit session =>
+          NamedDB('changelog).readOnly { implicit session =>
             SQL("SELECT COUNT(*) FROM table1").map(_.int(1)).single.apply().
               get should be(1)
           }
         }
       }
 
-      "the row created in record table when a primary key of a row is " +
+      "the row created in changelog table when a primary key of a row is " +
         "updated to observee table after .setUp is executed" in {
         withTableUserAndDatabases {
           (s"INSERT INTO $observeeDbName.table1 (pr1, pr2, col1) VALUES " +
@@ -150,14 +150,14 @@ class ChangeLoggerManagerSpec extends FreeSpec with Matchers
 
           s"UPDATE $observeeDbName.table1 SET pr1=2".query
 
-          NamedDB('record).readOnly { implicit session =>
+          NamedDB('changelog).readOnly { implicit session =>
             SQL("SELECT COUNT(*) FROM table1").map(_.int(1)).single.apply().
               get should be(2)
           }
         }
       }
 
-      "the row created in record table when a non primary key of a row is " +
+      "the row created in changelog table when a non primary key of a row is " +
         "updated to observee table after .setUp is executed" in {
         withTableUserAndDatabases {
           (s"INSERT INTO $observeeDbName.table1 (pr1, pr2, col1) VALUES " +
@@ -167,7 +167,7 @@ class ChangeLoggerManagerSpec extends FreeSpec with Matchers
 
           s"UPDATE $observeeDbName.table1 SET col1=2".query
 
-          NamedDB('record).readOnly { implicit session =>
+          NamedDB('changelog).readOnly { implicit session =>
             SQL("SELECT COUNT(*) FROM table1").map(_.int(1)).single.apply().
               get should be(1)
           }
@@ -179,8 +179,8 @@ class ChangeLoggerManagerSpec extends FreeSpec with Matchers
 
   ".tearDown" - {
 
-    "record manipulation aspect:" - {
-      "no rows created in record table when a row is inserted to observee " +
+    "changelog manipulation aspect:" - {
+      "no rows created in changelog table when a row is inserted to observee " +
         "table after .tearDown is executed" in {
         withTableUserAndDatabases {
           noException should be thrownBy {
@@ -191,7 +191,7 @@ class ChangeLoggerManagerSpec extends FreeSpec with Matchers
             (s"INSERT INTO $observeeDbName.table1 (pr1, pr2, col1) VALUES " +
               "(1, 'test', 3)").query
 
-            NamedDB('record).readOnly { implicit session =>
+            NamedDB('changelog).readOnly { implicit session =>
               SQL("SELECT COUNT(*) FROM table1").map(_.int(1)).single.apply().
                 get should be(0)
             }

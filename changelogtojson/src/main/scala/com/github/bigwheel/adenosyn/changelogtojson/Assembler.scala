@@ -1,8 +1,8 @@
-package com.github.bigwheel.adenosyn.recordstojson
+package com.github.bigwheel.adenosyn.changelogtojson
 
 import argonaut.Argonaut._
 import argonaut._
-import com.github.bigwheel.adenosyn.recordstojson.dsl._
+import com.github.bigwheel.adenosyn.changelogtojson.dsl._
 import scalaz.Scalaz._
 import scalikejdbc.DBSession
 import scalikejdbc.SQL

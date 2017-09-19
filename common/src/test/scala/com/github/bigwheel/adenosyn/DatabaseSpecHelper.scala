@@ -16,7 +16,7 @@ trait DatabaseSpecHelper extends BeforeAndAfterAll { this: Suite =>
 
   protected[this] val postfix = md5(this.getClass().getCanonicalName()).take(8)
   protected[this] val observeeDbName = "observee" + postfix
-  protected[this] val recordDbName = "record" + postfix
+  protected[this] val changeLogDbName = "changelog" + postfix
   protected[this] val userName = "changeloggermanager" + postfix
   protected[this] val password = "clm" + postfix
 
@@ -29,7 +29,7 @@ trait DatabaseSpecHelper extends BeforeAndAfterAll { this: Suite =>
     Class.forName("com.mysql.jdbc.Driver")
     ConnectionPool.singleton(sqlutil.url(), "root", "root")
     ConnectionPool.add('observee, sqlutil.url(observeeDbName), "root", "root")
-    ConnectionPool.add('record, sqlutil.url(recordDbName), "root", "root")
+    ConnectionPool.add('changelog, sqlutil.url(changeLogDbName), "root", "root")
   }
 
   protected[this] implicit val session = AutoSession
@@ -38,8 +38,8 @@ trait DatabaseSpecHelper extends BeforeAndAfterAll { this: Suite =>
     sqlutil.executeStatements(
       s"""DROP DATABASE IF EXISTS $observeeDbName;
          |CREATE DATABASE $observeeDbName;
-         |DROP DATABASE IF EXISTS $recordDbName;
-         |CREATE DATABASE $recordDbName;
+         |DROP DATABASE IF EXISTS $changeLogDbName;
+         |CREATE DATABASE $changeLogDbName;
          |DROP USER IF EXISTS '$userName'@'%';""".stripMargin
     )
     test
@@ -50,7 +50,7 @@ trait DatabaseSpecHelper extends BeforeAndAfterAll { this: Suite =>
       sqlutil.executeStatements(
         s"""CREATE USER '$userName'@'%' IDENTIFIED BY '$password';
            |GRANT ALL ON $observeeDbName.* TO '$userName'@'%';
-           |GRANT ALL ON $recordDbName.* TO '$userName'@'%';""".stripMargin
+           |GRANT ALL ON $changeLogDbName.* TO '$userName'@'%';""".stripMargin
       )
       test
     }

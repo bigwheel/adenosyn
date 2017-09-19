@@ -11,7 +11,7 @@ class QueueFeederSpec extends FreeSpec with Matchers with DatabaseSpecHelper {
 
   "base test" in {
     withTableUserAndDatabases {
-      new ChangeLoggerManager(sqlutil.url(), observeeDbName, recordDbName,
+      new ChangeLoggerManager(sqlutil.url(), observeeDbName, changeLogDbName,
         userName, password).setUp
 
       val cf = new ConnectionFactory
