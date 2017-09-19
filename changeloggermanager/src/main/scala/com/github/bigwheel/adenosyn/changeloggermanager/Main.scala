@@ -14,20 +14,23 @@ object Main {
     strArgument(metavar("PASSWORD"), help("password to connect databases")),
     switch(long("dry-run"), short('d'), help("only show sql queries"))
   ) _
-  final case class Setup(url: String, observee: String, record: String, username: String,
-    password: String, dryRun: Boolean) extends Mode
+  final case class Setup(url: String, observee: String, record: String,
+    username: String, password: String, dryRun: Boolean) extends Mode
   val setup: Parser[Mode] = dbOptionParser(Setup)
-  final case class Teardown(url: String, observee: String, record: String, username: String,
-    password: String, dryRun: Boolean) extends Mode
+  final case class Teardown(url: String, observee: String, record: String,
+    username: String, password: String, dryRun: Boolean) extends Mode
   val teardown: Parser[Mode] = dbOptionParser(Teardown)
-  final case class Validate(url: String, observee: String, record: String, username: String,
-    password: String, dryRun: Boolean) extends Mode
+  final case class Validate(url: String, observee: String, record: String,
+    username: String, password: String, dryRun: Boolean) extends Mode
   val validate: Parser[Mode] = dbOptionParser(Validate)
 
   val parser: Parser[Mode] = subparser(
-    command("setup", info(setup, progDesc("create triggers and tables to record row changes"))),
-    command("teardown", info(teardown, progDesc("remove triggers to record row changes"))),
-    command("validate", info(validate, progDesc("validate trigger/table definitions")))
+    command("setup", info(setup,
+      progDesc("create triggers and tables to record row changes"))),
+    command("teardown", info(teardown,
+      progDesc("remove triggers to record row changes"))),
+    command("validate", info(validate,
+      progDesc("validate trigger/table definitions")))
   )
 
   def main(args: Array[String]) {

@@ -29,7 +29,7 @@ class ChangeLoggerManager private(observeeDbName: String, recordDbName: String,
 
       // 'OLD' and 'NEW' are special keyword of trigger
       // https://dev.mysql.com/doc/refman/5.6/ja/trigger-syntax.html
-      val queriesForObservee = Seq(
+      val changeLogger = Seq(
         s"""CREATE TRIGGER changeloggermanager_observee_${tableName}_insert AFTER INSERT
            |ON $observeeDbName.$tableName FOR EACH ROW
            |REPLACE INTO $recordDbName.$tableName($primaryColumnNames)
@@ -52,7 +52,7 @@ class ChangeLoggerManager private(observeeDbName: String, recordDbName: String,
            |AS SELECT $primaryColumnNames FROM $observeeDbName.$tableName
            |WHERE FALSE""".stripMargin.replace('\n', ' ')
 
-      (queriesForObservee, queryForRecord)
+      (changeLogger, queryForRecord)
     }
 
     val temp = queries.unzip
