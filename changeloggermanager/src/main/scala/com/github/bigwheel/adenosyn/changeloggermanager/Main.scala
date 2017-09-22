@@ -6,7 +6,10 @@ import scalaz.syntax.applicativePlus._
 object Main {
 
   sealed trait Mode
-  val dbOptionParser: ((String, String, String, String, String, Boolean) => Mode) => Parser[Mode] = ^^^^^( // unfortunately follow help texts for strArgument don't appear in any help text
+  type ArgsToMode = ((String, String, String, String, String, Boolean) => Mode)
+  val dbOptionParser: ArgsToMode => Parser[Mode] = ^^^^^(
+    // unfortunately following help texts for strArgument don't appear in any
+    // help text
     strArgument(metavar("URL"), help("JDBC URL without specifying schema")),
     strArgument(metavar("OBSERVEE"), help("observee database name")),
     strArgument(metavar("CHANGELOG"), help("changelog database name")),
@@ -16,13 +19,13 @@ object Main {
   ) _
   final case class Setup(url: String, observee: String, changeLog: String,
     username: String, password: String, dryRun: Boolean) extends Mode
-  val setup: Parser[Mode] = dbOptionParser(Setup)
+  val setup: Parser[Mode] = dbOptionParser(Setup.apply)
   final case class Teardown(url: String, observee: String, changeLog: String,
     username: String, password: String, dryRun: Boolean) extends Mode
-  val teardown: Parser[Mode] = dbOptionParser(Teardown)
+  val teardown: Parser[Mode] = dbOptionParser(Teardown.apply)
   final case class Validate(url: String, observee: String, changeLog: String,
     username: String, password: String, dryRun: Boolean) extends Mode
-  val validate: Parser[Mode] = dbOptionParser(Validate)
+  val validate: Parser[Mode] = dbOptionParser(Validate.apply)
 
   val parser: Parser[Mode] = subparser(
     command("setup", info(setup,
@@ -35,7 +38,8 @@ object Main {
 
   def main(args: Array[String]) {
     val opts = info(parser <*> helper,
-      header("changeloggermanager - which changelogs row changes in another table"))
+      header("changeloggermanager - which changelogs row changes in another " +
+        "table"))
     execParser(args, "changeloggermanager.jar", opts) match {
       case Validate(url, observee, changeLog, username, password, dryRun) =>
         println("not implemented yet")
@@ -47,7 +51,8 @@ object Main {
         else
           cr.setUp()
       case Teardown(url, observee, changeLog, username, password, dryRun) =>
-        val cr = new ChangeLoggerManager(url, observee, changeLog, username, password)
+        val cr = new ChangeLoggerManager(url, observee, changeLog, username,
+          password)
         if (dryRun)
           println(cr.tearDownQueries.mkString("\n"))
         else
