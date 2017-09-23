@@ -3,8 +3,6 @@ elasticsearch:
   ports:
     - '9200:9200'
     - '9300:9300'
-  volumes:
-    - ./for-docker/elasticsearch/data:/usr/share/elasticsearch/data
 
 mysql:
   image: 'mysql:5.7'
@@ -14,7 +12,6 @@ mysql:
     MYSQL_ROOT_PASSWORD: root
   volumes:
     - ./for-docker/mysql/conf.d:/etc/mysql/conf.d
-    - ./for-docker/mysql/data:/var/lib/mysql
 
 rabbitmq:
   image: 'rabbitmq:3.6-management-alpine'
