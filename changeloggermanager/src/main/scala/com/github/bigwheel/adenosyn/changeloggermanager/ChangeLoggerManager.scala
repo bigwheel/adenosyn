@@ -56,10 +56,10 @@ class ChangeLoggerManager private(observeeDbName: String, changeLogDbName: Strin
     }
 
     val temp = queries.unzip
-    val queriesForObservee = temp._1.flatten
+    val changeLoggers = temp._1.flatten
     val queriesForChangeLog = temp._2
 
-    SetupQueries(queriesForObservee, queriesForChangeLog)
+    SetupQueries(changeLoggers, queriesForChangeLog)
   }
 
   def setUp() = {
@@ -77,6 +77,8 @@ class ChangeLoggerManager private(observeeDbName: String, changeLogDbName: Strin
       }
     }
 
+    if (!isValid)
+      throw new Exception("table definition is not valid(this must be a bug)")
   }
 
   lazy val tearDownQueries = using(DB(connectionPool.borrow)) { db =>
@@ -96,4 +98,45 @@ class ChangeLoggerManager private(observeeDbName: String, changeLogDbName: Strin
     }
   }
 
+  def isValid(): Boolean = {
+    def getAllTables(dbName: String) = using(DB(connectionPool.borrow)) { db =>
+      db.autoClose(false)
+      // http://stackoverflow.com/a/13433382/4006322
+      db.conn.setCatalog(dbName)
+
+      db.getTableNames().map(db.getTable(_).get)
+    }
+
+    try {
+      val observeeTables = getAllTables(observeeDbName)
+      val changeLogTables = getAllTables(changeLogDbName)
+      val observeeTableNames = observeeTables.map(_.name).sorted
+      val changeLogTableNames = changeLogTables.map(_.name).sorted
+
+      if (observeeTableNames != changeLogTableNames)
+        return false
+
+      //val tableNames = observeeTableNames // == changeLogTableNames
+      changeLogTables.foreach { table =>
+        if (!table.columns.exists(_.name == "updated_at"))
+          return false
+      }
+
+      val tablePairs = observeeTables.sortBy(_.name).
+        zip(changeLogTables.sortBy(_.name))
+      tablePairs.foreach { case (observeeTable, changeLogTable) =>
+        if (observeeTable.columns.filter(_.isPrimaryKey).toSet !=
+          changeLogTable.columns.filter(_.isPrimaryKey).toSet)
+          return false
+      }
+      true
+
+    } catch {
+      case e: java.sql.SQLException =>
+        // TODO: comment in and use logger in following lines
+        //println(e)
+        //println("maybe no user")
+        false
+    }
+  }
 }

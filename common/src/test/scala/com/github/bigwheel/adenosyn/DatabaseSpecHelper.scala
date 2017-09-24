@@ -47,17 +47,27 @@ trait DatabaseSpecHelper extends BeforeAndAfterAll { this: Suite =>
     (test: DBSession => Any): Unit =
     usingDb(connectionPool)(_.autoCommit { session => test(session) })
 
-  protected[this] def withDatabases(test: => Any) {
+  protected[this] def withNoDatabases(test: => Any) {
     autoCommit() { implicit session =>
       sqlutil.executeStatements(
         s"""DROP DATABASE IF EXISTS $observeeDbName;
-           |CREATE DATABASE         $observeeDbName;
            |DROP DATABASE IF EXISTS $changeLogDbName;
-           |CREATE DATABASE         $changeLogDbName;
            |DROP USER IF EXISTS '$userName'@'%';""".stripMargin
       )
     }
     test
+  }
+
+  protected[this] def withDatabases(test: => Any) {
+    withNoDatabases {
+      autoCommit() { implicit session =>
+        sqlutil.executeStatements(
+          s"""CREATE DATABASE $observeeDbName;
+             |CREATE DATABASE $changeLogDbName;""".stripMargin
+        )
+      }
+      test
+    }
   }
 
   protected[this] def withUserAndDatabases(test: => Any) {

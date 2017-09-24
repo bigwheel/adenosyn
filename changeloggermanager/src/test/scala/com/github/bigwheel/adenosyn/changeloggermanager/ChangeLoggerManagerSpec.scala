@@ -13,6 +13,62 @@ class ChangeLoggerManagerSpec extends FreeSpec with Matchers
   private[this] def subject = new ChangeLoggerManager(url(),
     observeeDbName, changeLogDbName, userName, password)
 
+  ".isValid" - {
+    "with no databases" - {
+      "returns false" in {
+        withNoDatabases {
+          subject.isValid should be(false)
+        }
+      }
+    }
+    "with databases" - {
+      "even if no tables" - {
+        "returns true" in {
+          withUserAndDatabases {
+            subject.isValid should be(true)
+          }
+        }
+      }
+      "with a observee table" - {
+        "returns false" in {
+          withTableUserAndDatabases {
+            subject.isValid should be(false)
+          }
+        }
+        "with dummy changelog table (pattern 1)" - {
+          "returns false" in {
+            withTableUserAndDatabases {
+              autoCommit(defaultDbConnectionPool) { implicit session =>
+                (s"CREATE TABLE $changeLogDbName.table1" +
+                  "(dummy_col INTEGER not null, PRIMARY KEY(dummy_col))").query
+              }
+              subject.isValid should be(false)
+            }
+          }
+        }
+        "with dummy changelog table (pattern 2)" - {
+          "returns false" in {
+            withTableUserAndDatabases {
+              autoCommit(defaultDbConnectionPool) { implicit session =>
+                (s"CREATE TABLE $changeLogDbName.table1" +
+                  "(updated_at TIMESTAMP not null)").query
+              }
+              subject.isValid should be(false)
+            }
+          }
+        }
+        "with .setup exection" - {
+          "returns true" in {
+            withTableUserAndDatabases {
+              subject.setUp
+              subject.isValid should be(true)
+            }
+          }
+        }
+      }
+    }
+  }
+
   ".setUp" - {
     "database permission aspect:" - {
       "there is no user in observee database" - {
