@@ -19,12 +19,12 @@ trait DatabaseSpecHelper extends BeforeAndAfterAll { this: Suite =>
   protected[this] val userName = "changeloggermanager" + postfix
   protected[this] val password = "clm" + postfix
 
-  protected[this] val defaultDbConnectionPool = Commons2ConnectionPoolFactory(
-    sqlutil.url(), "root", "root")
-  protected[this] val observeeDbConnectionPool = Commons2ConnectionPoolFactory(
-    sqlutil.url(observeeDbName), "root", "root")
-  protected[this] val changeLogDbConnectionPool = Commons2ConnectionPoolFactory(
-    sqlutil.url(changeLogDbName), "root", "root")
+  protected[this] val defaultDbConnectionPool =
+    Commons2ConnectionPoolFactory(sqlutil.url(), "root", "root")
+  protected[this] val observeeDbConnectionPool =
+    Commons2ConnectionPoolFactory(sqlutil.url(observeeDbName), "root", "root")
+  protected[this] val changeLogDbConnectionPool =
+    Commons2ConnectionPoolFactory(sqlutil.url(changeLogDbName), "root", "root")
 
   override def finalize(): Unit = {
     defaultDbConnectionPool.close
@@ -34,23 +34,18 @@ trait DatabaseSpecHelper extends BeforeAndAfterAll { this: Suite =>
 
   protected[this] def usingDb
     (connectionPool: Commons2ConnectionPool = defaultDbConnectionPool)
-    (method: DB => Any): Unit = {
+    (method: DB => Any): Unit =
     using(DB(connectionPool.borrow())) { db => method(db) }
-  }
 
-  // TODO: use above method
   protected[this] def readOnly
     (connectionPool: Commons2ConnectionPool = defaultDbConnectionPool)
-    (test: DBSession => Any): Unit = {
+    (test: DBSession => Any): Unit =
     usingDb(connectionPool)(_.readOnly { session => test(session) })
-  }
 
-  // TODO: use above above method
   protected[this] def autoCommit
     (connectionPool: Commons2ConnectionPool = defaultDbConnectionPool)
-    (test: DBSession => Any): Unit = {
+    (test: DBSession => Any): Unit =
     usingDb(connectionPool)(_.autoCommit { session => test(session) })
-  }
 
   protected[this] def withDatabases(test: => Any) {
     autoCommit() { implicit session =>

@@ -21,7 +21,8 @@ class MainSpec extends FunSpec with Matchers with BeforeAndAfter with BeforeAndA
 
   private[this] val elasticsearchUrl = ElasticsearchClientUri("127.0.0.1", 9300)
   private[this] val client = ElasticClient.transport(
-    Settings.settingsBuilder.put("cluster_name", "elasticsearch").build(), elasticsearchUrl
+    Settings.settingsBuilder.put("cluster_name", "elasticsearch").build(),
+    elasticsearchUrl
   )
 
   before {
