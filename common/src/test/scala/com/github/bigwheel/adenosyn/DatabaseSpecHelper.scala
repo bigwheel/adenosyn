@@ -42,28 +42,23 @@ trait DatabaseSpecHelper extends BeforeAndAfterAll { this: Suite =>
   protected[this] def readOnly
     (connectionPool: Commons2ConnectionPool = defaultDbConnectionPool)
     (test: DBSession => Any): Unit = {
-    using(DB(connectionPool.borrow())) { db =>
-      db.autoCommit { session => test(session) }
-    }
+    usingDb(connectionPool)(_.readOnly { session => test(session) })
   }
 
   // TODO: use above above method
   protected[this] def autoCommit
     (connectionPool: Commons2ConnectionPool = defaultDbConnectionPool)
     (test: DBSession => Any): Unit = {
-    using(DB(connectionPool.borrow())) { db =>
-      db.autoCommit { session => test(session) }
-    }
+    usingDb(connectionPool)(_.autoCommit { session => test(session) })
   }
-  AutoSession
 
   protected[this] def withDatabases(test: => Any) {
     autoCommit() { implicit session =>
       sqlutil.executeStatements(
         s"""DROP DATABASE IF EXISTS $observeeDbName;
-           |CREATE DATABASE $observeeDbName;
+           |CREATE DATABASE         $observeeDbName;
            |DROP DATABASE IF EXISTS $changeLogDbName;
-           |CREATE DATABASE $changeLogDbName;
+           |CREATE DATABASE         $changeLogDbName;
            |DROP USER IF EXISTS '$userName'@'%';""".stripMargin
       )
     }
@@ -75,7 +70,7 @@ trait DatabaseSpecHelper extends BeforeAndAfterAll { this: Suite =>
       autoCommit() { implicit session =>
         sqlutil.executeStatements(
           s"""CREATE USER '$userName'@'%' IDENTIFIED BY '$password';
-             |GRANT ALL ON $observeeDbName.* TO '$userName'@'%';
+             |GRANT ALL ON $observeeDbName.*  TO '$userName'@'%';
              |GRANT ALL ON $changeLogDbName.* TO '$userName'@'%';""".stripMargin
         )
       }

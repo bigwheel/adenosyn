@@ -1,5 +1,6 @@
 package com.github.bigwheel.adenosyn.changeupdater
 
+import com.github.bigwheel.adenosyn.DatabaseSpecHelper
 import com.github.bigwheel.adenosyn.changeloggermanager.ChangeLoggerManager
 import com.github.bigwheel.adenosyn.changelogtojson.Assembler
 import com.github.bigwheel.adenosyn.changelogtojson.dsl._
@@ -15,21 +16,8 @@ import org.scalatest.BeforeAndAfterAll
 import org.scalatest.FunSpec
 import org.scalatest.Matchers
 import scalaz.Scalaz._
-import scalikejdbc.Commons2ConnectionPoolFactory
-import scalikejdbc.ConnectionPool
-import scalikejdbc.DB
-import scalikejdbc.NamedDB
 
-class MainSpec extends FunSpec with Matchers with BeforeAndAfter with BeforeAndAfterAll {
-
-  Class.forName("com.mysql.jdbc.Driver")
-
-  override def beforeAll() = {
-    _root_.com.github.bigwheel.adenosyn.sqlutil.suppressLog()
-    ConnectionPool.singleton(sqlutil.url(), "root", "root")
-    ConnectionPool.add('observee, sqlutil.url("observee"), "root", "root")
-    ConnectionPool.add('changelog, sqlutil.url("changelog"), "root", "root")
-  }
+class MainSpec extends FunSpec with Matchers with BeforeAndAfter with BeforeAndAfterAll with DatabaseSpecHelper {
 
   private[this] val elasticsearchUrl = ElasticsearchClientUri("127.0.0.1", 9300)
   private[this] val client = ElasticClient.transport(
@@ -46,28 +34,11 @@ class MainSpec extends FunSpec with Matchers with BeforeAndAfter with BeforeAndA
     client.close
   }
 
-  private[this] def withDatabases(test: => Any) {
-    DB.autoCommit { implicit session =>
-      sqlutil.executeStatements(
-        """DROP DATABASE IF EXISTS observee;
-          |CREATE DATABASE         observee;
-          |DROP DATABASE IF EXISTS changelog;
-          |CREATE DATABASE         changelog;
-          |DROP USER IF EXISTS 'adenosyn'@'%';
-          |CREATE USER         'adenosyn'@'%' IDENTIFIED BY 'yb';
-          |GRANT ALL ON observee.*  TO 'adenosyn'@'%';
-          |GRANT ALL ON changelog.* TO 'adenosyn'@'%';""".stripMargin
-      )
-    }
-    NamedDB('observee).autoCommit { implicit session =>
-      sqlutil.executeScript("/fixture.sql")
-    }
-
-    test
-  }
-
   it("a") {
-    withDatabases {
+    withUserAndDatabases {
+      autoCommit(observeeDbConnectionPool) { session =>
+        sqlutil.executeScript("/fixture.sql")(session)
+      }
       val structure = JsObject(
         RootJoinDefinition(
           Table(
@@ -96,19 +67,18 @@ class MainSpec extends FunSpec with Matchers with BeforeAndAfter with BeforeAndA
   class Subject(elasticsearchClientUri: ElasticsearchClientUri,
     mappings: Seq[(JsValue, IndexAndType)]) {
     private[this] val url = sqlutil.url()
-    private[this] val username = "adenosyn"
-    private[this] val password = "yb"
 
-    val cr = new ChangeLoggerManager(url, "observee", "changelog", username,
-      password)
+    val cr = new ChangeLoggerManager(url, observeeDbName, changeLogDbName,
+      userName, password)
 
     def buildAll() = {
-      val client = ElasticClient.transport(Settings.settingsBuilder.put("cluster_name",
-        "elasticsearch").build(), elasticsearchUrl)
+      val client = ElasticClient.transport(
+        Settings.settingsBuilder.put("cluster_name", "elasticsearch").build(),
+        elasticsearchUrl
+      )
 
-      val pool = Commons2ConnectionPoolFactory(url, username, password)
-      scalikejdbc.using(DB(pool.borrow)) { db =>
-        db.conn.setCatalog("observee")
+      usingDb() { db =>
+        db.conn.setCatalog(observeeDbName)
         db.autoCommit { implicit session =>
           val a = new Assembler
           val json = a.AssembleAll(mappings.head._1).head
