@@ -3,12 +3,11 @@ package com.github.bigwheel.adenosyn
 import com.github.bigwheel.adenosyn.sqlutil._
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.Suite
-import org.slf4j.LoggerFactory
-import scala.sys.process.Process
-import scala.sys.process.ProcessLogger
 import scalikejdbc._
 
 trait DatabaseSpecHelper extends BeforeAndAfterAll { this: Suite =>
+
+  Class.forName("com.mysql.jdbc.Driver")
 
   // http://qiita.com/suin/items/5a7a56afacc8a35abcb6
   private[this] def md5(text: String): String = java.security.MessageDigest.
@@ -23,10 +22,6 @@ trait DatabaseSpecHelper extends BeforeAndAfterAll { this: Suite =>
   override protected def beforeAll() = {
     super.beforeAll()
 
-    val l = LoggerFactory.getLogger(getClass)
-    Process("docker-compose up -d").!(ProcessLogger(l.debug, l.warn))
-
-    Class.forName("com.mysql.jdbc.Driver")
     ConnectionPool.singleton(sqlutil.url(), "root", "root")
     ConnectionPool.add('observee, sqlutil.url(observeeDbName), "root", "root")
     ConnectionPool.add('changelog, sqlutil.url(changeLogDbName), "root", "root")
