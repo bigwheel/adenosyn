@@ -29,9 +29,11 @@ class ChangeLoggerManagerSpec extends FreeSpec with Matchers
         "there is no user in changelog database" - {
           "produce Exception" in {
             withDatabases {
-              Seq(s"CREATE USER '$userName'@'%' IDENTIFIED BY " +
-                s"'changeloggermanager'",
-                s"GRANT ALL ON $observeeDbName.* TO '$userName'@'%'").query
+              autoCommit() { implicit session =>
+                Seq(s"CREATE USER '$userName'@'%' IDENTIFIED BY " +
+                  s"'changeloggermanager'",
+                  s"GRANT ALL ON $observeeDbName.* TO '$userName'@'%'").query
+              }
 
               a[Exception] should be thrownBy {
                 subject.setUp
@@ -71,7 +73,9 @@ class ChangeLoggerManagerSpec extends FreeSpec with Matchers
         withTableUserAndDatabases {
           subject.setUp
 
-          NamedDB('changelog).getTable("table1") shouldNot be(empty)
+          usingDb(changeLogDbConnectionPool) { db =>
+            db.getTable("table1") shouldNot be(empty)
+          }
         }
       }
 
@@ -80,12 +84,14 @@ class ChangeLoggerManagerSpec extends FreeSpec with Matchers
         withTableUserAndDatabases {
           subject.setUp
 
-          NamedDB('changelog).getTable("table1").get.columns should matchPattern {
-            case List(
-            Column("updated_at", _, "TIMESTAMP", _, true, false, false, _, _),
-            Column("pr1", _, "INT", _, true, true, false, _, _),
-            Column("pr2", _, "VARCHAR", 30, true, true, false, _, _)
-            ) =>
+          usingDb(changeLogDbConnectionPool) { db =>
+            db.getTable("table1").get.columns should matchPattern {
+              case List(
+              Column("updated_at", _, "TIMESTAMP", _, true, false, false, _, _),
+              Column("pr1", _, "INT", _, true, true, false, _, _),
+              Column("pr2", _, "VARCHAR", 30, true, true, false, _, _)
+              ) =>
+            }
           }
         }
       }
@@ -96,12 +102,14 @@ class ChangeLoggerManagerSpec extends FreeSpec with Matchers
       "no rows created in changelog table when a row is inserted to observee " +
         "table before .setUp is executed" in {
         withTableUserAndDatabases {
-          (s"INSERT INTO $observeeDbName.table1 (pr1, pr2, col1) VALUES " +
-            "(1, 'test', 3)").query
+          autoCommit() { implicit session =>
+            (s"INSERT INTO $observeeDbName.table1 (pr1, pr2, col1) VALUES " +
+              "(1, 'test', 3)").query
+          }
 
           subject.setUp
 
-          NamedDB('changelog).readOnly { implicit session =>
+          readOnly(changeLogDbConnectionPool) { implicit session =>
             SQL("SELECT COUNT(*) FROM table1").map(_.int(1)).single.apply().
               get should be(0)
           }
@@ -113,10 +121,12 @@ class ChangeLoggerManagerSpec extends FreeSpec with Matchers
         withTableUserAndDatabases {
           subject.setUp
 
-          (s"INSERT INTO $observeeDbName.table1 (pr1, pr2, col1) VALUES " +
-            "(1, 'test', 3)").query
+          autoCommit() { implicit session =>
+            (s"INSERT INTO $observeeDbName.table1 (pr1, pr2, col1) VALUES " +
+              "(1, 'test', 3)").query
+          }
 
-          NamedDB('changelog).readOnly { implicit session =>
+          readOnly(changeLogDbConnectionPool) { implicit session =>
             SQL("SELECT COUNT(*) FROM table1").map(_.int(1)).single.apply().
               get should be(1)
           }
@@ -126,14 +136,16 @@ class ChangeLoggerManagerSpec extends FreeSpec with Matchers
       "the row created in changelog table when a row is deleted to observee " +
         "table after .setUp is executed" in {
         withTableUserAndDatabases {
-          (s"INSERT INTO $observeeDbName.table1 (pr1, pr2, col1) VALUES " +
-            "(1, 'test', 3)").query
+          autoCommit() { implicit session =>
+            (s"INSERT INTO $observeeDbName.table1 (pr1, pr2, col1) VALUES " +
+              "(1, 'test', 3)").query
 
-          subject.setUp
+            subject.setUp
 
-          s"DELETE FROM $observeeDbName.table1".query
+            s"DELETE FROM $observeeDbName.table1".query
+          }
 
-          NamedDB('changelog).readOnly { implicit session =>
+          readOnly(changeLogDbConnectionPool) { implicit session =>
             SQL("SELECT COUNT(*) FROM table1").map(_.int(1)).single.apply().
               get should be(1)
           }
@@ -143,14 +155,16 @@ class ChangeLoggerManagerSpec extends FreeSpec with Matchers
       "the row created in changelog table when a primary key of a row is " +
         "updated to observee table after .setUp is executed" in {
         withTableUserAndDatabases {
-          (s"INSERT INTO $observeeDbName.table1 (pr1, pr2, col1) VALUES " +
-            "(1, 'test', 3)").query
+          autoCommit() { implicit session =>
+            (s"INSERT INTO $observeeDbName.table1 (pr1, pr2, col1) VALUES " +
+              "(1, 'test', 3)").query
 
-          subject.setUp
+            subject.setUp
 
-          s"UPDATE $observeeDbName.table1 SET pr1=2".query
+            s"UPDATE $observeeDbName.table1 SET pr1=2".query
+          }
 
-          NamedDB('changelog).readOnly { implicit session =>
+          readOnly(changeLogDbConnectionPool) { implicit session =>
             SQL("SELECT COUNT(*) FROM table1").map(_.int(1)).single.apply().
               get should be(2)
           }
@@ -160,14 +174,16 @@ class ChangeLoggerManagerSpec extends FreeSpec with Matchers
       "the row created in changelog table when a non primary key of a row is " +
         "updated to observee table after .setUp is executed" in {
         withTableUserAndDatabases {
-          (s"INSERT INTO $observeeDbName.table1 (pr1, pr2, col1) VALUES " +
-            "(1, 'test', 3)").query
+          autoCommit() { implicit session =>
+            (s"INSERT INTO $observeeDbName.table1 (pr1, pr2, col1) VALUES " +
+              "(1, 'test', 3)").query
 
-          subject.setUp
+            subject.setUp
 
-          s"UPDATE $observeeDbName.table1 SET col1=2".query
+            s"UPDATE $observeeDbName.table1 SET col1=2".query
+          }
 
-          NamedDB('changelog).readOnly { implicit session =>
+          readOnly(changeLogDbConnectionPool) { implicit session =>
             SQL("SELECT COUNT(*) FROM table1").map(_.int(1)).single.apply().
               get should be(1)
           }
@@ -188,10 +204,12 @@ class ChangeLoggerManagerSpec extends FreeSpec with Matchers
             subj.setUp
             subj.tearDown
 
-            (s"INSERT INTO $observeeDbName.table1 (pr1, pr2, col1) VALUES " +
-              "(1, 'test', 3)").query
+            autoCommit() { implicit session =>
+              (s"INSERT INTO $observeeDbName.table1 (pr1, pr2, col1) VALUES " +
+                "(1, 'test', 3)").query
+            }
 
-            NamedDB('changelog).readOnly { implicit session =>
+            readOnly(changeLogDbConnectionPool) { implicit session =>
               SQL("SELECT COUNT(*) FROM table1").map(_.int(1)).single.apply().
                 get should be(0)
             }
