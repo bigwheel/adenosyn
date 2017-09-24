@@ -23,9 +23,21 @@ object Main {
   final case class Teardown(url: String, observee: String, changeLog: String,
     username: String, password: String, dryRun: Boolean) extends Mode
   val teardown: Parser[Mode] = dbOptionParser(Teardown.apply)
+
+  type ArgsToModeWithOutDryRun = ((String, String, String, String, String) =>
+    Mode)
+  val dbOptionParserWODryRun: ArgsToModeWithOutDryRun => Parser[Mode] = ^^^^(
+    // unfortunately following help texts for strArgument don't appear in any
+    // help text
+    strArgument(metavar("URL"), help("JDBC URL without specifying schema")),
+    strArgument(metavar("OBSERVEE"), help("observee database name")),
+    strArgument(metavar("CHANGELOG"), help("changelog database name")),
+    strArgument(metavar("USERNAME"), help("username to connect databases")),
+    strArgument(metavar("PASSWORD"), help("password to connect databases"))
+  ) _
   final case class Validate(url: String, observee: String, changeLog: String,
-    username: String, password: String, dryRun: Boolean) extends Mode
-  val validate: Parser[Mode] = dbOptionParser(Validate.apply)
+    username: String, password: String) extends Mode
+  val validate: Parser[Mode] = dbOptionParserWODryRun(Validate.apply)
 
   val parser: Parser[Mode] = subparser(
     command("setup", info(setup,
@@ -41,8 +53,15 @@ object Main {
       header("changeloggermanager - which changelogs row changes in another " +
         "table"))
     execParser(args, "changeloggermanager.jar", opts) match {
-      case Validate(url, observee, changeLog, username, password, dryRun) =>
-        println("not implemented yet")
+      case Validate(url, observee, changeLog, username, password) =>
+        val cr = new ChangeLoggerManager(url, observee, changeLog, username,
+          password)
+        val result = cr.isValid()
+        println(result)
+        if (result)
+          sys.exit(0)
+        else
+          sys.exit(1)
       case Setup(url, observee, changeLog, username, password, dryRun) =>
         val cr = new ChangeLoggerManager(url, observee, changeLog, username,
           password)

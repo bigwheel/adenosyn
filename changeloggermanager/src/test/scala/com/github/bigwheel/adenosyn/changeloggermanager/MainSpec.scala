@@ -58,7 +58,10 @@ class MainSpec extends FreeSpec with Matchers with ExitStatusSpecHelper with Dat
       arg => withTableUserAndDatabases { arg }),
     TestCase(s"teardown ${sqlutil.url()} $observeeDbName $changeLogDbName $userName $password -d",
       true, arg => withTableUserAndDatabases { arg }),
-    TestCase(s"validate ${sqlutil.url()} $observeeDbName $changeLogDbName $userName $password", true)
+    TestCase(s"validate ${sqlutil.url()} $observeeDbName $changeLogDbName $userName $password",
+      true, arg => withUserAndDatabases { arg }),
+    TestCase(s"validate ${sqlutil.url()} $observeeDbName $changeLogDbName $userName $password",
+      false, arg => withTableUserAndDatabases { arg })
   )
   for (tc <- testCases)
     s"with '${tc.arg}', ${if (tc.isSuccess) "no " else "" }error happens" in {
