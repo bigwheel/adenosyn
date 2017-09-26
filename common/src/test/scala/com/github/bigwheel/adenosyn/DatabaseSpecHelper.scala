@@ -1,11 +1,10 @@
 package com.github.bigwheel.adenosyn
 
 import com.github.bigwheel.adenosyn.sqlutil._
-import org.scalatest.BeforeAndAfterAll
 import org.scalatest.Suite
 import scalikejdbc._
 
-trait DatabaseSpecHelper extends BeforeAndAfterAll { this: Suite =>
+trait DatabaseSpecHelper { this: Suite =>
 
   Class.forName("com.mysql.jdbc.Driver")
 
