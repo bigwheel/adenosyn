@@ -2,12 +2,27 @@
 //       Shared Settings          //
 //--------------------------------//
 
+val waitMiddlewareBoot = taskKey[Unit](
+  "boot middlewares and wait warms up if no runs"
+)
+
+waitMiddlewareBoot in Global := {
+  import scala.sys.process.Process
+  if (Process("docker-compose ps -q").!!.length == 0) {
+    Process("docker-compose up -d").!
+    Thread.sleep(10 * 1000L)
+  }
+}
+
+//test in Test := (test in Test).dependsOn(waitMiddlewareBoot).value
+
 lazy val baseSettings = Seq(
   organization := "com.github.bigwheel",
   version := "1.0.0",
   scalaVersion := "2.11.8",
   scalacOptions ++= Seq("-unchecked", "-deprecation", "-feature"),
-  test in assembly := {}
+  test in assembly := {},
+  test in Test := (test in Test).dependsOn(waitMiddlewareBoot in Global).value
 )
 
 lazy val scalatestLibs = Seq(
