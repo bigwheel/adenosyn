@@ -251,6 +251,10 @@ class ChangeLoggerManagerSpec extends FreeSpec with Matchers
 
   ".tearDown" - {
 
+    "remove only manager created triggers" in {
+      pending
+    }
+
     "changelog manipulation aspect:" - {
       "no rows created in changelog table when a row is inserted to observee " +
         "table after .tearDown is executed" in {
