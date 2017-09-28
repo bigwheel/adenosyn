@@ -65,15 +65,16 @@ object Main {
       case Setup(url, observee, changeLog, username, password, dryRun) =>
         val cr = new ChangeLoggerManager(url, observee, changeLog, username,
           password)
-        if (dryRun)
-          println((cr.setUpQueries.forObservee ++ cr.setUpQueries.forChangeLog).mkString("\n"))
-        else
+        if (dryRun) {
+          val queries = cr.query.forChangeLogTables ++ cr.query.forChangeLoggers
+          println(queries.mkString("\n"))
+        } else
           cr.setUp()
       case Teardown(url, observee, changeLog, username, password, dryRun) =>
         val cr = new ChangeLoggerManager(url, observee, changeLog, username,
           password)
         if (dryRun)
-          println(cr.tearDownQueries.mkString("\n"))
+          println(cr.query.tearDownQueries.mkString("\n"))
         else
           cr.tearDown()
     }
