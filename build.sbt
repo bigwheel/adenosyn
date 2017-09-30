@@ -28,7 +28,7 @@ lazy val baseSettings = Seq(
 lazy val scalatestLibs = Seq(
   // @formatter:off
   "org.scalactic" %% "scalactic" % "3.0.1",
-  "org.scalatest" %% "scalatest" % "3.0.1" % "test"
+  "org.scalatest" %% "scalatest" % "3.0.1" % Test
   // @formatter:on
 )
 
@@ -70,12 +70,15 @@ lazy val changeloggermanager = project.
 )
 
 lazy val queuefeeder = project.
-  dependsOn(common % "test->test", changeloggermanager % "test->compile").
+  dependsOn(common % "test->test;test->compile").
   settings(baseSettings).
   settings(
     name := "queuefeeder",
     libraryDependencies ++= scalikejdbcLibs ++ scalatestLibs ++ Seq(
-      "com.rabbitmq" % "amqp-client" % "4.1.0"
+      "com.rabbitmq"            %  "amqp-client"      % "5.0.0",
+      "net.databinder.dispatch" %% "dispatch-core"    % "0.13.2" % Test,
+      "io.argonaut"             %% "argonaut"         % "6.2"    % Test,
+      "io.argonaut"             %% "argonaut-monocle" % "6.2"    % Test
     )
   )
 
