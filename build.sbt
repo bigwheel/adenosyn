@@ -78,7 +78,8 @@ lazy val queuefeeder = project.
       "com.rabbitmq"            %  "amqp-client"      % "5.0.0",
       "net.databinder.dispatch" %% "dispatch-core"    % "0.13.2" % Test,
       "io.argonaut"             %% "argonaut"         % "6.2"    % Test,
-      "io.argonaut"             %% "argonaut-monocle" % "6.2"    % Test
+      "io.argonaut"             %% "argonaut-monocle" % "6.2"    % Test,
+      "org.mockito"             %  "mockito-core"     % "2.10.0" % Test
     )
   )
 

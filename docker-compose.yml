@@ -13,6 +13,18 @@ mysql:
   volumes:
     - ./for-docker/mysql/conf.d:/etc/mysql/conf.d
 
+phpmyadmin:
+  image: 'phpmyadmin/phpmyadmin'
+  environment:
+    PMA_ARBITRARY: 1
+    PMA_HOST: mysql
+    PMA_USER: root
+    PMA_PASSWORD: root
+  links:
+    - mysql
+  ports:
+     - '8080:80'
+
 rabbitmq:
   image: 'rabbitmq:3.6-management-alpine'
   ports:
