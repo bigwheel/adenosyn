@@ -1,6 +1,7 @@
 package com.github.bigwheel.adenosyn
 
 import scala.io.Source
+import scala.language.reflectiveCalls
 
 // http://www.ne.jp/asahi/hishidama/home/tech/scala/sample/using.html
 object Using {
