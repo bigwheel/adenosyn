@@ -37,5 +37,3 @@ project/plugins/project/
 .worksheet
 
 ### Project Property ###
-/for-docker/elasticsearch/data/
-/for-docker/mysql/data/
